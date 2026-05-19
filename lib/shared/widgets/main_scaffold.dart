@@ -16,7 +16,7 @@ class MainScaffold extends StatelessWidget {
     switch (index) {
       case 0: context.go('/home'); break;
       case 1: context.go('/history'); break;
-      case 2: context.go('/scan-guide'); break;
+      case 2: context.go('/advice'); break;
       case 3: context.go('/profile'); break;
     }
   }
@@ -50,7 +50,7 @@ class MainScaffold extends StatelessWidget {
                   label: 'PHÂN TÍCH', index: 1, currentIndex: currentIndex,
                   onTap: (i) => _onNavTap(context, i)),
 
-              const SizedBox(width: 48), // chỗ trống cho FAB
+              const SizedBox(width: 48), 
 
               _NavItem(icon: Icons.storefront_outlined, activeIcon: Icons.storefront,
                   label: 'SẢN PHẨM', index: 2, currentIndex: currentIndex,

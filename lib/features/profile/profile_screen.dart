@@ -74,7 +74,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         iconBg: AppColors.primaryTint,
                         iconColor: AppColors.primary,
                         label: 'Chỉnh sửa hồ sơ',
-                        onTap: () {},
+                        onTap: () => context.go('/edit-profile'),
                       ),
                       _MenuItem(
                         icon: Icons.monitor_heart_outlined,
@@ -115,7 +115,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           value: _reminderEnabled,
                           onChanged: (v) =>
                               setState(() => _reminderEnabled = v),
-                          activeColor: AppColors.primary,
+                          activeThumbColor: AppColors.primary,
                         ),
                       ),
                     ]),

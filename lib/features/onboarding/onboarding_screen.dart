@@ -79,85 +79,90 @@ class _OnboardingPage extends StatelessWidget {
     final screenHeight = MediaQuery.of(context).size.height;
 
     return SafeArea(
-      child: Column(
-        children: [
-          // ── Top bar ───────────────────────────────────────────────────
-          Padding(
-            padding: const EdgeInsets.symmetric(
-                horizontal: AppColors.s16, vertical: AppColors.s12),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text('Glow Aura', style: AppTextStyles.title(color: AppColors.primary)),
-                TextButton(
-                  onPressed: onSkip,
-                  child: Text('Bỏ qua',
-                      style: AppTextStyles.body(color: AppColors.textSecondary)),
-                ),
-              ],
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: AppColors.s16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            // ── Top bar ─────────────────────────────────────────────────
+            SizedBox(
+              height: 48,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text('Glow Aura',
+                      style: AppTextStyles.title(color: AppColors.primary)),
+                  TextButton(
+                    onPressed: onSkip,
+                    child: Text('Bỏ qua',
+                        style: AppTextStyles.body(
+                            color: AppColors.textSecondary)),
+                  ),
+                ],
+              ),
             ),
-          ),
 
-          // ── Hero image ────────────────────────────────────────────────
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: AppColors.s16),
-            child: SizedBox(
-              height: screenHeight * 0.38,
+            // ── Hero image ───────────────────────────────────────────────
+            SizedBox(
+              height: screenHeight * 0.42,
+              width: double.infinity,
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(20),
-                child: data.isFirst ? const _GradientHero() : const _AiScanHero(),
+                child: data.isFirst
+                    ? const _GradientHero()
+                    : const _AiScanHero(),
               ),
             ),
-          ),
-          const SizedBox(height: AppColors.s24),
 
-          // ── Content ───────────────────────────────────────────────────
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: AppColors.s24),
-            child: Column(
-              children: [
-                Text(data.title,
-                    textAlign: TextAlign.center,
-                    style: AppTextStyles.display()),
-                const SizedBox(height: AppColors.s12),
-                Text(data.subtitle,
-                    textAlign: TextAlign.center,
-                    style: AppTextStyles.body()),
-                if (!data.isFirst) ...[
-                  const SizedBox(height: AppColors.s16),
-                  const _FeatureRow(),
-                ],
-              ],
+            const SizedBox(height: AppColors.s24),
+
+            // ── Title ────────────────────────────────────────────────────
+            Text(
+              data.title,
+              textAlign: TextAlign.center,
+              style: AppTextStyles.display(),
             ),
-          ),
 
-          const Spacer(),
+            const SizedBox(height: AppColors.s12),
 
-          // ── Dot indicators ────────────────────────────────────────────
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: List.generate(
-              totalPages,
-              (i) => AnimatedContainer(
-                duration: const Duration(milliseconds: 250),
-                margin: const EdgeInsets.symmetric(horizontal: 4),
-                width: i == currentPage ? 20 : 6,
-                height: 6,
-                decoration: BoxDecoration(
-                  color: i == currentPage
-                      ? AppColors.primary
-                      : AppColors.primaryTint,
-                  borderRadius: BorderRadius.circular(3),
+            // ── Subtitle ─────────────────────────────────────────────────
+            Text(
+              data.subtitle,
+              textAlign: TextAlign.center,
+              style: AppTextStyles.body(),
+            ),
+
+            if (!data.isFirst) ...[
+              const SizedBox(height: AppColors.s24),
+              const _FeatureRow(),
+            ],
+
+            const Spacer(),
+
+            // ── Dot indicators ───────────────────────────────────────────
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: List.generate(
+                totalPages,
+                (i) => AnimatedContainer(
+                  duration: const Duration(milliseconds: 250),
+                  margin: const EdgeInsets.symmetric(horizontal: 4),
+                  width: i == currentPage ? 20 : 6,
+                  height: 6,
+                  decoration: BoxDecoration(
+                    color: i == currentPage
+                        ? AppColors.primary
+                        : AppColors.primaryTint,
+                    borderRadius: BorderRadius.circular(3),
+                  ),
                 ),
               ),
             ),
-          ),
-          const SizedBox(height: AppColors.s16),
 
-          // ── CTA Button ────────────────────────────────────────────────
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: AppColors.s24),
-            child: SizedBox(
+            const SizedBox(height: AppColors.s16),
+
+            // ── CTA Button ───────────────────────────────────────────────
+            SizedBox(
               width: double.infinity,
               height: 52,
               child: ElevatedButton(
@@ -173,26 +178,29 @@ class _OnboardingPage extends StatelessWidget {
                 ),
               ),
             ),
-          ),
 
-          if (data.isFirst) ...[
-            const SizedBox(height: AppColors.s12),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text('Bạn đã có tài khoản? ',
-                    style: AppTextStyles.body()),
-                GestureDetector(
-                  onTap: () => context.go('/login'),
-                  child: Text('Đăng nhập',
+            if (data.isFirst) ...[
+              const SizedBox(height: AppColors.s12),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text('Bạn đã có tài khoản? ',
+                      style: AppTextStyles.body()),
+                  GestureDetector(
+                    onTap: () => context.go('/login'),
+                    child: Text(
+                      'Đăng nhập',
                       style: AppTextStyles.body(color: AppColors.primary)
-                          .copyWith(fontWeight: FontWeight.w600)),
-                ),
-              ],
-            ),
+                          .copyWith(fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+
+            const SizedBox(height: AppColors.s32),
           ],
-          const SizedBox(height: AppColors.s32),
-        ],
+        ),
       ),
     );
   }
@@ -252,6 +260,7 @@ class _SheenPainter extends CustomPainter {
       ..close();
     canvas.drawPath(path, paint);
   }
+
   @override
   bool shouldRepaint(_) => false;
 }
@@ -261,83 +270,153 @@ class _AiScanHero extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      color: const Color(0xFF2E5C5A),
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          Container(
-            width: 160, height: 200,
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        // ── Ảnh thực ────────────────────────────────────────────────────
+        Image.asset(
+          'assets/images/onboarding_1.png',
+          fit: BoxFit.cover,
+        ),
+
+        // ── Gradient overlay phía dưới ───────────────────────────────────
+        Align(
+          alignment: Alignment.bottomCenter,
+          child: Container(
+            height: 120,
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.08),
-              borderRadius: BorderRadius.circular(80),
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Colors.transparent,
+                  Colors.black.withOpacity(0.45),
+                ],
+              ),
             ),
           ),
-          Container(width: 180, height: 220,
-            decoration: BoxDecoration(shape: BoxShape.circle,
-              border: Border.all(color: Colors.white30, width: 1.5))),
-          Positioned(
-            bottom: 40, left: 32, right: 32,
-            child: Column(
-              children: [
-                Text('ĐANG PHÂN TÍCH',
-                    style: AppTextStyles.label(color: Colors.white60)),
-                const SizedBox(height: AppColors.s8),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(4),
-                  child: const LinearProgressIndicator(
-                    value: 0.67,
-                    backgroundColor: Colors.white12,
-                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white70),
-                    minHeight: 6,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: Text('67%',
-                      style: AppTextStyles.caption(color: Colors.white70)),
-                ),
-              ],
+        ),
+
+        // ── Vòng tròn scan ───────────────────────────────────────────────
+        Center(
+          child: Container(
+            width: 180,
+            height: 180,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(color: Colors.white60, width: 1.5),
             ),
           ),
-        ],
-      ),
+        ),
+
+        // ── Progress bar ─────────────────────────────────────────────────
+        Positioned(
+          bottom: AppColors.s24,
+          left: AppColors.s24,
+          right: AppColors.s24,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'ĐANG PHÂN TÍCH CẤU TRÚC DA',
+                style: AppTextStyles.label(color: Colors.white70),
+              ),
+              const SizedBox(height: AppColors.s8),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(4),
+                child: const LinearProgressIndicator(
+                  value: 0.67,
+                  backgroundColor: Colors.white24,
+                  valueColor:
+                      AlwaysStoppedAnimation<Color>(Colors.white),
+                  minHeight: 6,
+                ),
+              ),
+              const SizedBox(height: AppColors.s4),
+              Align(
+                alignment: Alignment.centerRight,
+                child: Text('67%',
+                    style: AppTextStyles.caption(color: Colors.white)),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }
 
+// ── Feature Row ───────────────────────────────────────────────────────────────
 class _FeatureRow extends StatelessWidget {
   const _FeatureRow();
-  static const features = ['MỤN & SEO', 'LỖ CHÂN LÔNG', 'NẾP NHĂN'];
+
+  static const _features = [
+    _FeatureItem(
+      icon: 'assets/images/onboarding_icon_1.png',
+      label: 'MỤN & SEO',
+    ),
+    _FeatureItem(
+      icon: 'assets/images/onboarding_icon_2.png',
+      label: 'LỖ CHÂN LÔNG',
+    ),
+    _FeatureItem(
+      icon: 'assets/images/onboarding_icon_3.png',
+      label: 'NẾP NHĂN',
+    ),
+  ];
 
   @override
   Widget build(BuildContext context) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
-      children: features.map((f) => Padding(
-        padding: const EdgeInsets.symmetric(horizontal: AppColors.s8),
-        child: Column(
-          children: [
-            Container(
-              width: 44, height: 44,
-              decoration: BoxDecoration(
-                color: AppColors.primarySubtle,
-                shape: BoxShape.circle,
-                border: Border.all(color: AppColors.primaryTint),
-              ),
-              child: const Center(
-                child: Text('✦',
-                    style: TextStyle(fontSize: 18, color: AppColors.primary)),
-              ),
-            ),
-            const SizedBox(height: AppColors.s4),
-            Text(f, style: AppTextStyles.label()),
-          ],
-        ),
-      )).toList(),
+      children: _features
+          .map((f) => Expanded(child: _FeatureChip(item: f)))
+          .toList(),
     );
   }
+}
+
+class _FeatureChip extends StatelessWidget {
+  final _FeatureItem item;
+  const _FeatureChip({required this.item});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 52,
+          height: 52,
+          decoration: BoxDecoration(
+            color: AppColors.primarySubtle,
+            shape: BoxShape.circle,
+            border: Border.all(color: AppColors.primaryTint, width: 1.5),
+          ),
+          child: ClipOval(
+            child: Padding(
+              padding: const EdgeInsets.all(10),
+              child: Image.asset(
+                item.icon,
+                fit: BoxFit.contain,
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: AppColors.s8),
+        Text(
+          item.label,
+          textAlign: TextAlign.center,
+          style: AppTextStyles.label(),
+        ),
+      ],
+    );
+  }
+}
+
+class _FeatureItem {
+  final String icon, label;
+  const _FeatureItem({required this.icon, required this.label});
 }
 
 // ── Data model ────────────────────────────────────────────────────────────────
@@ -345,7 +424,9 @@ class _OnboardingData {
   final String title, subtitle, buttonLabel;
   final bool isFirst;
   const _OnboardingData({
-    required this.title, required this.subtitle,
-    required this.buttonLabel, required this.isFirst,
+    required this.title,
+    required this.subtitle,
+    required this.buttonLabel,
+    required this.isFirst,
   });
 }

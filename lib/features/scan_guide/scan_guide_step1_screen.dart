@@ -73,23 +73,39 @@ class _FaceFramePreview extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      height: 280,
+      height: 360,
       decoration: BoxDecoration(
-        color: const Color(0xFFEDE8F5),
+        color: const Color.fromARGB(255, 142, 142, 143),
         borderRadius: BorderRadius.circular(16),
       ),
       child: Stack(
         alignment: Alignment.center,
         children: [
-          // Oval guide
-          Container(
-            width: 160, height: 210,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(80),
-              border: Border.all(color: AppColors.primary, width: 2),
+          // ── Ảnh người dùng ─────────────────────────────────────────
+          Positioned.fill(
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(16),
+              child: Image.asset(
+                'assets/images/scan_1.png',
+                fit: BoxFit.cover,
+              ),
             ),
           ),
-          // Scan label
+
+          // ── Oval guide ──────────────────────────────────────────────
+          Container(
+            width: 160,
+            height: 210,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(80),
+              border: Border.all(
+                color: AppColors.primary,
+                width: 2,
+              ),
+            ),
+          ),
+
+          // ── Scan label ──────────────────────────────────────────────
           Positioned(
             top: 20,
             child: Container(
@@ -102,9 +118,12 @@ class _FaceFramePreview extends StatelessWidget {
                   style: AppTextStyles.label(color: Colors.white)),
             ),
           ),
-          // Tip bar at bottom
+
+          // ── Tip bar ─────────────────────────────────────────────────
           Positioned(
-            bottom: 0, left: 0, right: 0,
+            bottom: 0,
+            left: 0,
+            right: 0,
             child: Container(
               padding: const EdgeInsets.symmetric(
                   horizontal: AppColors.s16, vertical: AppColors.s12),

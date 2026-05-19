@@ -40,7 +40,7 @@ class AdviceScreen extends StatelessWidget {
       body: SafeArea(
         child: Column(
           children: [
-            // App bar 
+            // ── App bar ───────────────────────────────────────────────────
             Padding(
               padding: const EdgeInsets.symmetric(
                   horizontal: AppColors.s16, vertical: AppColors.s12),
@@ -199,7 +199,7 @@ class _ResultSummaryCard extends StatelessWidget {
   }
 }
 
-// Expert advice card 
+// ── Expert advice card ────────────────────────────────────────────────────────
 class _ExpertAdviceCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
@@ -280,7 +280,7 @@ class _ExpertAdviceCard extends StatelessWidget {
   }
 }
 
-// Tag chip 
+// ── Tag chip ──────────────────────────────────────────────────────────────────
 class _TagChip extends StatelessWidget {
   final String label;
   const _TagChip({required this.label});
@@ -300,7 +300,7 @@ class _TagChip extends StatelessWidget {
   }
 }
 
-// Products row 
+// ── Products row ──────────────────────────────────────────────────────────────
 class _ProductsRow extends StatelessWidget {
   final List<_ProductData> products;
   const _ProductsRow({required this.products});
@@ -392,7 +392,7 @@ class _ProductCard extends StatelessWidget {
   }
 }
 
-// Daily tip bar 
+// ── Daily tip bar ─────────────────────────────────────────────────────────────
 class _DailyTipBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
@@ -428,7 +428,7 @@ class _DailyTipBar extends StatelessWidget {
   }
 }
 
-// Data models 
+// ── Data models ───────────────────────────────────────────────────────────────
 class _ProductData {
   final String brand, name, price, tag;
   final Color tagColor, tagTextColor;

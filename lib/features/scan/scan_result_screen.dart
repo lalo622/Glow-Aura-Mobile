@@ -104,11 +104,9 @@ class ScanResultScreen extends StatelessWidget {
               ),
               child: SizedBox(
                 width: double.infinity, height: 52,
-                child: ElevatedButton.icon(
-                  onPressed: () => context.go('/advice'),
-                  icon: const Icon(Icons.shopping_bag_outlined,
-                      color: Colors.white, size: 20),
-                  label: const Text('Mua sản phẩm gợi ý'),
+                child: ElevatedButton(
+                  onPressed: () => context.go('/scan-detail'),
+                  child: const Text('Kết quả chi tiết')
                 ),
               ),
             ),
