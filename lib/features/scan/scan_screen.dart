@@ -1,6 +1,13 @@
+import 'dart:async';
+import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:glow_aura/core/theme/app_theme.dart';
+
+import 'camera_service.dart';
+import 'data/scan_database.dart';
+import 'data/image_save_service.dart';
 
 class ScanScreen extends StatefulWidget {
   const ScanScreen({super.key});
@@ -11,10 +18,26 @@ class ScanScreen extends StatefulWidget {
 
 class _ScanScreenState extends State<ScanScreen>
     with SingleTickerProviderStateMixin {
-  bool _isScanning = false;
-  double _progress = 0.75;
-  late AnimationController _pulseController;
-  late Animation<double> _pulseAnimation;
+  // ── Camera & detection ────────────────────────────────────────────────────
+  final _cameraService = CameraService();
+  StreamSubscription<SmoothedFaceState>? _detectionSub;
+
+  // UI  nhận SmoothedFaceState 
+  SmoothedFaceState _smoothedState = SmoothedFaceState.empty();
+
+  // ── Capture state ─────────────────────────────────────────────────────────
+  bool _hasTriggeredCapture = false; 
+  bool _isCountingDown      = false;
+  int  _countdown           = 0;
+  bool _isCapturing         = false;
+
+  // ── UI state ──────────────────────────────────────────────────────────────
+  bool    _isInitializing = true;
+  String? _errorMessage;
+
+  // ── Pulse animation ───────────────────────────────────────────────────────
+  late final AnimationController _pulseController;
+  late final Animation<double>   _pulseAnimation;
 
   @override
   void initState() {
@@ -23,191 +46,512 @@ class _ScanScreenState extends State<ScanScreen>
       vsync: this,
       duration: const Duration(seconds: 2),
     )..repeat(reverse: true);
-    _pulseAnimation = Tween<double>(begin: 0.95, end: 1.05)
-        .animate(CurvedAnimation(
-            parent: _pulseController, curve: Curves.easeInOut));
+    _pulseAnimation = Tween<double>(begin: 0.95, end: 1.05).animate(
+      CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
+    );
+    _initCamera();
+  }
+
+  Future<void> _initCamera() async {
+    setState(() {
+      _isInitializing = true;
+      _errorMessage   = null;
+    });
+
+    final status = await Permission.camera.request();
+    if (!status.isGranted) {
+      setState(() {
+        _isInitializing = false;
+        _errorMessage   = 'Cần cấp quyền camera để sử dụng tính năng này.';
+      });
+      return;
+    }
+
+    try {
+      await _cameraService.initialize();
+
+      // Lắng nghe smoothedStream — đã qua hysteresis & window filter
+      _detectionSub = _cameraService.smoothedStream.listen((state) {
+        if (!mounted) return;
+        setState(() => _smoothedState = state);
+
+        if (!_hasTriggeredCapture &&
+            !_isCountingDown &&
+            state.readyToCapture) {
+          _hasTriggeredCapture = true;
+          _isCountingDown      = true;
+          _startCountdown();
+        }
+      });
+
+      setState(() => _isInitializing = false);
+    } catch (e) {
+      setState(() {
+        _isInitializing = false;
+        _errorMessage   = 'Không thể khởi tạo camera: $e';
+      });
+    }
+  }
+
+  // Countdown hoàn toàn độc lập với detection — lock bởi _isCountingDown
+  Future<void> _startCountdown() async {
+    for (int i = 3; i >= 1; i--) {
+      if (!mounted) return;
+      setState(() => _countdown = i);
+      await Future.delayed(const Duration(seconds: 1));
+    }
+    if (!mounted) return;
+    setState(() => _countdown = 0);
+    _isCountingDown = false;
+    _onCapture();
+  }
+
+  Future<void> _onCapture() async {
+  if (_isCapturing) return;
+  setState(() => _isCapturing = true);
+
+  final file = await _cameraService.takePicture();
+
+  if (file == null) {
+    setState(() => _isCapturing = false);
+    _resetCaptureState();
+    return;
+  }
+
+  final db = ScanDatabase();
+  final imageSaveService = ImageSaveService(db);
+  final result = await imageSaveService.saveScan(file.path);
+
+  if (!mounted) return;
+  setState(() => _isCapturing = false);
+
+  context.go('/scan-result', extra: {
+    'imagePath': result.localPath,
+    'scanId':    result.scanId,
+  });
+}
+
+  /// Reset toàn bộ capture state 
+  Future<void> _resetCaptureState() async {
+    setState(() {
+      _hasTriggeredCapture = false;
+      _isCountingDown      = false;
+      _countdown           = 0;
+      _isCapturing         = false;
+    });
+
+    await _cameraService.restartStream();
   }
 
   @override
   void dispose() {
     _pulseController.dispose();
+    _detectionSub?.cancel();
+    _cameraService.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.primarySubtle,
+      backgroundColor: Colors.black,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.close, color: AppColors.textPrimary),
+          icon: const Icon(Icons.close, color: Colors.white),
           onPressed: () => context.go('/home'),
         ),
-        title: Text('Quét da mặt', style: AppTextStyles.title()),
+        title: Text('Quét da mặt',
+            style: AppTextStyles.title().copyWith(color: Colors.white)),
         centerTitle: true,
         actions: [
           IconButton(
-            icon: const Icon(Icons.help_outline,
-                color: AppColors.textSecondary),
+            icon: const Icon(Icons.help_outline, color: Colors.white70),
             onPressed: () => context.go('/scan-guide'),
           ),
         ],
       ),
       body: SafeArea(
-        child: Column(
-          children: [
-            // ── Camera preview area ───────────────────────────────────────
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.all(AppColors.s16),
-                child: _CameraPreviewArea(pulseAnimation: _pulseAnimation),
-              ),
-            ),
-
-            // ── Scan status ───────────────────────────────────────────────
-            Container(
-              margin: const EdgeInsets.symmetric(horizontal: AppColors.s16),
-              padding: const EdgeInsets.all(AppColors.s16),
-              decoration: BoxDecoration(
-                color: AppColors.surface,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: AppColors.border),
-              ),
-              child: Column(
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text('Đang phân tích cấu trúc da',
-                          style: AppTextStyles.body(
-                              color: AppColors.textPrimary)
-                              .copyWith(fontWeight: FontWeight.w500)),
-                      Text('${(_progress * 100).toInt()}%',
-                          style: AppTextStyles.body(color: AppColors.primary)
-                              .copyWith(fontWeight: FontWeight.w700)),
-                    ],
+        child: _isInitializing
+            ? const _LoadingView()
+            : _errorMessage != null
+                ? _ErrorView(message: _errorMessage!, onRetry: _initCamera)
+                : _CameraBody(
+                    cameraService:  _cameraService,
+                    smoothedState:  _smoothedState,
+                    pulseAnimation: _pulseAnimation,
+                    isCapturing:    _isCapturing,
+                    countdown:      _countdown,
+                    onCapture:      _onCapture,
                   ),
-                  const SizedBox(height: AppColors.s8),
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(4),
-                    child: LinearProgressIndicator(
-                      value: _progress,
-                      minHeight: 6,
-                      backgroundColor: AppColors.primaryTint,
-                      valueColor: const AlwaysStoppedAnimation<Color>(
-                          AppColors.primary),
-                    ),
-                  ),
-                  const SizedBox(height: AppColors.s8),
-                  Text('GIỮ YÊN VỊ TRÍ TRONG VÀI GIÂY',
-                      style: AppTextStyles.label(color: AppColors.primary)),
-                ],
-              ),
-            ),
-            const SizedBox(height: AppColors.s16),
-
-            // ── Status indicators ─────────────────────────────────────────
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: AppColors.s16),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: _StatusChip(
-                      icon: Icons.wb_sunny_outlined,
-                      label: 'Ánh sáng',
-                      value: 'TỐI ƯU',
-                      valueColor: AppColors.success,
-                    ),
-                  ),
-                  const SizedBox(width: AppColors.s12),
-                  Expanded(
-                    child: _StatusChip(
-                      icon: Icons.face_outlined,
-                      label: 'Vị trí',
-                      value: 'CHÍNH XÁC',
-                      valueColor: AppColors.primary,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: AppColors.s24),
-
-            // ── Camera controls ───────────────────────────────────────────
-            _CameraControls(
-              onCapture: () => context.go('/scan-result'),
-            ),
-            const SizedBox(height: AppColors.s12),
-
-            Text(
-              'Căn chỉnh khuôn mặt vào giữa khung hình để có kết quả tốt nhất',
-              style: AppTextStyles.caption(),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: AppColors.s24),
-          ],
-        ),
       ),
     );
   }
 }
 
-// ── Camera preview ────────────────────────────────────────────────────────────
-class _CameraPreviewArea extends StatelessWidget {
-  final Animation<double> pulseAnimation;
-  const _CameraPreviewArea({required this.pulseAnimation});
+// Camera Body
+class _CameraBody extends StatelessWidget {
+  final CameraService      cameraService;
+  final SmoothedFaceState  smoothedState;
+  final Animation<double>  pulseAnimation;
+  final bool               isCapturing;
+  final int                countdown;
+  final VoidCallback       onCapture;
+
+  const _CameraBody({
+    required this.cameraService,
+    required this.smoothedState,
+    required this.pulseAnimation,
+    required this.isCapturing,
+    required this.countdown,
+    required this.onCapture,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: AppColors.primaryTint.withOpacity(0.3),
-        borderRadius: BorderRadius.circular(24),
-      ),
+    return Column(
+      children: [
+        Expanded(
+          child: Padding(
+            padding: const EdgeInsets.all(AppColors.s16),
+            child: _CameraPreviewArea(
+              controller:     cameraService.controller!,
+              smoothedState:  smoothedState,
+              pulseAnimation: pulseAnimation,
+              countdown:      countdown,
+            ),
+          ),
+        ),
+
+        _ScanStatusBar(smoothedState: smoothedState, countdown: countdown),
+        const SizedBox(height: AppColors.s16),
+
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: AppColors.s16),
+          child: Row(
+            children: [
+              Expanded(
+                child: _StatusChip(
+                  icon:       Icons.wb_sunny_outlined,
+                  label:      'Ánh sáng',
+                  value:      smoothedState.isLightingStable ? 'TỐT ƯU' : 'THIẾU SÁNG',
+                  valueColor: smoothedState.isLightingStable
+                      ? AppColors.success
+                      : Colors.orange,
+                ),
+              ),
+              const SizedBox(width: AppColors.s12),
+              Expanded(
+                child: _StatusChip(
+                  icon:  Icons.face_outlined,
+                  label: 'Khuôn mặt',
+                  value: smoothedState.isFaceStable
+                      ? (smoothedState.isCenteredStable ? 'CHÍNH XÁC' : 'CĂN CHỈNH LẠI')
+                      : 'KHÔNG THẤY',
+                  valueColor: smoothedState.isFaceStable && smoothedState.isCenteredStable
+                      ? AppColors.primary
+                      : Colors.orange,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: AppColors.s24),
+
+        _CameraControls(
+          isCapturing:      isCapturing,
+          isReadyToCapture: smoothedState.isFaceStable && smoothedState.isCenteredStable,
+          onCapture:        onCapture,
+        ),
+        const SizedBox(height: AppColors.s12),
+
+        Text(
+          'Căn chỉnh khuôn mặt vào giữa khung hình để có kết quả tốt nhất',
+          style: AppTextStyles.caption().copyWith(color: Colors.white60),
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: AppColors.s24),
+      ],
+    );
+  }
+}
+
+// Camera Preview Area
+class _CameraPreviewArea extends StatelessWidget {
+  final CameraController   controller;
+  final SmoothedFaceState  smoothedState;
+  final Animation<double>  pulseAnimation;
+  final int                countdown;
+
+  const _CameraPreviewArea({
+    required this.controller,
+    required this.smoothedState,
+    required this.pulseAnimation,
+    required this.countdown,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final ovalColor = smoothedState.isFaceStable
+        ? (smoothedState.isCenteredStable ? AppColors.primary : Colors.orange)
+        : Colors.white54;
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(24),
       child: Stack(
-        alignment: Alignment.center,
+        fit: StackFit.expand,
         children: [
-          // Face oval guide — dashed border effect
-          AnimatedBuilder(
-            animation: pulseAnimation,
-            builder: (_, __) => Transform.scale(
-              scale: pulseAnimation.value,
-              child: CustomPaint(
-                size: const Size(220, 290),
-                painter: _DashedOvalPainter(color: AppColors.primary),
+          FittedBox(
+            fit: BoxFit.cover,
+            child: SizedBox(
+              width:  controller.value.previewSize!.height,
+              height: controller.value.previewSize!.width,
+              child: CameraPreview(controller),
+            ),
+          ),
+
+          Container(
+            decoration: BoxDecoration(
+              gradient: RadialGradient(
+                center: Alignment.center,
+                radius: 0.85,
+                colors: [
+                  Colors.transparent,
+                  Colors.black.withOpacity(0.45),
+                ],
               ),
             ),
           ),
 
-          // Corner scan lines
-          ..._buildScanCorners(),
-
-          // Center face placeholder
-          Container(
-            width: 200, height: 260,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(100),
-              color: AppColors.primary.withOpacity(0.04),
+          Center(
+            child: AnimatedBuilder(
+              animation: pulseAnimation,
+              builder: (_, __) {
+                // Pulse chỉ khi chưa detect face
+                final scale = smoothedState.isFaceStable ? 1.0 : pulseAnimation.value;
+                return Transform.scale(
+                  scale: scale,
+                  child: CustomPaint(
+                    size: const Size(220, 290),
+                    painter: _DashedOvalPainter(color: ovalColor),
+                  ),
+                );
+              },
             ),
           ),
+
+          ..._buildScanCorners(ovalColor),
+
+          if (countdown > 0)
+            Center(
+              child: Text(
+                '$countdown',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 96,
+                  fontWeight: FontWeight.bold,
+                  shadows: [
+                    Shadow(
+                        blurRadius: 20,
+                        color: Colors.black54,
+                        offset: Offset(0, 2)),
+                  ],
+                ),
+              ),
+            ),
+
+          if (smoothedState.isFaceStable && countdown == 0)
+            const Positioned(
+              bottom: 16,
+              left: 0,
+              right: 0,
+              child: Center(child: _DetectedBadge()),
+            ),
         ],
       ),
     );
   }
 
-  static List<Widget> _buildScanCorners() {
+  static List<Widget> _buildScanCorners(Color color) {
     return [
-      Positioned(top: 40, left: 60,
-          child: _ScanCorner(top: true, left: true)),
-      Positioned(top: 40, right: 60,
-          child: _ScanCorner(top: true, left: false)),
+      Positioned(top: 40,    left: 60,
+          child: _ScanCorner(top: true,  left: true,  color: color)),
+      Positioned(top: 40,    right: 60,
+          child: _ScanCorner(top: true,  left: false, color: color)),
       Positioned(bottom: 40, left: 60,
-          child: _ScanCorner(top: false, left: true)),
+          child: _ScanCorner(top: false, left: true,  color: color)),
       Positioned(bottom: 40, right: 60,
-          child: _ScanCorner(top: false, left: false)),
+          child: _ScanCorner(top: false, left: false, color: color)),
     ];
+  }
+}
+
+// Scan Status Bar
+class _ScanStatusBar extends StatelessWidget {
+  final SmoothedFaceState smoothedState;
+  final int               countdown;
+
+  const _ScanStatusBar({required this.smoothedState, required this.countdown});
+
+  String get _statusText {
+    if (countdown > 0)                      return 'Giữ yên, chuẩn bị chụp...';
+    if (!smoothedState.isFaceStable)        return 'Hướng camera về phía khuôn mặt';
+    if (!smoothedState.isCenteredStable)    return 'Di chuyển để căn giữa khuôn mặt';
+    if (!smoothedState.isLightingStable)    return 'Cần thêm ánh sáng';
+    return 'Đang phân tích cấu trúc da...';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isReady = smoothedState.isFaceStable &&
+        smoothedState.isCenteredStable &&
+        smoothedState.isLightingStable;
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: AppColors.s16),
+      padding: const EdgeInsets.all(AppColors.s16),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white.withOpacity(0.12)),
+      ),
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Text(
+                  _statusText,
+                  style: AppTextStyles.body(color: Colors.white)
+                      .copyWith(fontWeight: FontWeight.w500),
+                ),
+              ),
+              AnimatedSwitcher(
+                duration: const Duration(milliseconds: 300),
+                child: (isReady || countdown > 0)
+                    ? const Icon(Icons.check_circle,
+                        color: AppColors.success, size: 20)
+                    : const SizedBox(
+                        width:  20,
+                        height: 20,
+                        child:  CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: AppColors.primary,
+                        ),
+                      ),
+              ),
+            ],
+          ),
+          if (isReady && countdown == 0) ...[
+            const SizedBox(height: AppColors.s8),
+            Text('GIỮ YÊN VỊ TRÍ TRONG VÀI GIÂY',
+                style: AppTextStyles.label(color: AppColors.primary)),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+// Camera Controls
+class _CameraControls extends StatelessWidget {
+  final bool         isCapturing;
+  final bool         isReadyToCapture;
+  final VoidCallback onCapture;
+
+  const _CameraControls({
+    required this.isCapturing,
+    required this.isReadyToCapture,
+    required this.onCapture,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        _CircleButton(icon: Icons.photo_outlined, onTap: () {}),
+        const SizedBox(width: AppColors.s32),
+
+        GestureDetector(
+          onTap: isCapturing ? null : onCapture,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            width:  72,
+            height: 72,
+            decoration: BoxDecoration(
+              color:  isReadyToCapture ? AppColors.primary : Colors.white30,
+              shape:  BoxShape.circle,
+              boxShadow: isReadyToCapture
+                  ? [BoxShadow(
+                      color: AppColors.primary.withOpacity(0.5),
+                      blurRadius: 20, spreadRadius: 4)]
+                  : [],
+            ),
+            child: isCapturing
+                ? const Padding(
+                    padding: EdgeInsets.all(20),
+                    child:   CircularProgressIndicator(
+                        color: Colors.white, strokeWidth: 2.5))
+                : const Icon(Icons.camera_alt, color: Colors.white, size: 32),
+          ),
+        ),
+        const SizedBox(width: AppColors.s32),
+
+        _CircleButton(icon: Icons.photo_outlined, onTap: () {}),
+      ],
+    );
+  }
+}
+
+class _CircleButton extends StatelessWidget {
+  final IconData   icon;
+  final VoidCallback onTap;
+  const _CircleButton({required this.icon, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width:  48,
+        height: 48,
+        decoration: BoxDecoration(
+          color:  Colors.white.withOpacity(0.12),
+          shape:  BoxShape.circle,
+          border: Border.all(color: Colors.white24),
+        ),
+        child: Icon(icon, color: Colors.white70, size: 22),
+      ),
+    );
+  }
+}
+
+// Misc Widgets
+class _DetectedBadge extends StatelessWidget {
+  const _DetectedBadge();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: AppColors.primary.withOpacity(0.85),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.face, color: Colors.white, size: 14),
+          const SizedBox(width: 6),
+          Text('Đã nhận diện khuôn mặt',
+              style: AppTextStyles.caption()
+                  .copyWith(color: Colors.white, fontWeight: FontWeight.w600)),
+        ],
+      ),
+    );
   }
 }
 
@@ -216,82 +560,80 @@ class _DashedOvalPainter extends CustomPainter {
   const _DashedOvalPainter({required this.color});
 
   @override
-void paint(Canvas canvas, Size size) {
-  final paint = Paint()
-    ..color = color
-    ..strokeWidth = 2
-    ..style = PaintingStyle.stroke;
-
-  const dashWidth = 12.0;
-  const dashSpace = 6.0;
-  final path = Path()
-    ..addOval(Rect.fromLTWH(0, 0, size.width, size.height));
-
-  final pathMetrics = path.computeMetrics();
-  for (final metric in pathMetrics) {
-    double distance = 0;
-    while (distance < metric.length) {
-      final end = (distance + dashWidth).clamp(0.0, metric.length);
-      canvas.drawPath(metric.extractPath(distance, end), paint);
-      distance += dashWidth + dashSpace;
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color      = color
+      ..strokeWidth = 2.5
+      ..style      = PaintingStyle.stroke;
+    const dashWidth = 12.0;
+    const dashSpace =  6.0;
+    final path = Path()
+      ..addOval(Rect.fromLTWH(0, 0, size.width, size.height));
+    for (final metric in path.computeMetrics()) {
+      double distance = 0;
+      while (distance < metric.length) {
+        final end = (distance + dashWidth).clamp(0.0, metric.length);
+        canvas.drawPath(metric.extractPath(distance, end), paint);
+        distance += dashWidth + dashSpace;
+      }
     }
   }
-}
 
   @override
-  bool shouldRepaint(_) => false;
+  bool shouldRepaint(covariant _DashedOvalPainter old) => old.color != color;
 }
 
 class _ScanCorner extends StatelessWidget {
-  final bool top, left;
-  const _ScanCorner({required this.top, required this.left});
+  final bool  top, left;
+  final Color color;
+  const _ScanCorner(
+      {required this.top, required this.left, required this.color});
 
   @override
   Widget build(BuildContext context) {
     return SizedBox(
       width: 20, height: 20,
       child: CustomPaint(
-        painter: _CornerPainter(
-            color: AppColors.primary, top: top, left: left),
-      ),
+          painter: _CornerPainter(color: color, top: top, left: left)),
     );
   }
 }
 
 class _CornerPainter extends CustomPainter {
   final Color color;
-  final bool top, left;
+  final bool  top, left;
   const _CornerPainter(
       {required this.color, required this.top, required this.left});
 
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = color
+      ..color     = color
       ..strokeWidth = 3
-      ..style = PaintingStyle.stroke
+      ..style     = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round;
     final x = left ? 0.0 : size.width;
-    final y = top ? 0.0 : size.height;
-    final dx = left ? size.width : -size.width;
-    final dy = top ? size.height : -size.height;
-    canvas.drawLine(Offset(x, y), Offset(x + dx, y), paint);
-    canvas.drawLine(Offset(x, y), Offset(x, y + dy), paint);
+    final y = top  ? 0.0 : size.height;
+    canvas.drawLine(Offset(x, y),
+        Offset(x + (left ? size.width : -size.width), y), paint);
+    canvas.drawLine(Offset(x, y),
+        Offset(x, y + (top ? size.height : -size.height)), paint);
   }
 
   @override
   bool shouldRepaint(_) => false;
 }
 
-// ── Status chip ───────────────────────────────────────────────────────────────
 class _StatusChip extends StatelessWidget {
   final IconData icon;
-  final String label, value;
-  final Color valueColor;
+  final String   label, value;
+  final Color    valueColor;
 
   const _StatusChip({
-    required this.icon, required this.label,
-    required this.value, required this.valueColor,
+    required this.icon,
+    required this.label,
+    required this.value,
+    required this.valueColor,
   });
 
   @override
@@ -300,9 +642,9 @@ class _StatusChip extends StatelessWidget {
       padding: const EdgeInsets.symmetric(
           horizontal: AppColors.s12, vertical: AppColors.s8),
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: Colors.white.withOpacity(0.08),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(color: Colors.white.withOpacity(0.12)),
       ),
       child: Row(
         children: [
@@ -311,9 +653,10 @@ class _StatusChip extends StatelessWidget {
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(label, style: AppTextStyles.caption()),
-              Text(value,
-                  style: AppTextStyles.label(color: valueColor)),
+              Text(label,
+                  style: AppTextStyles.caption()
+                      .copyWith(color: Colors.white60)),
+              Text(value, style: AppTextStyles.label(color: valueColor)),
             ],
           ),
         ],
@@ -322,62 +665,65 @@ class _StatusChip extends StatelessWidget {
   }
 }
 
-// ── Camera controls ───────────────────────────────────────────────────────────
-class _CameraControls extends StatelessWidget {
-  final VoidCallback onCapture;
-  const _CameraControls({required this.onCapture});
+class _LoadingView extends StatelessWidget {
+  const _LoadingView();
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        // Gallery button
-        Container(
-          width: 48, height: 48,
-          decoration: BoxDecoration(
-            color: AppColors.surface,
-            shape: BoxShape.circle,
-            border: Border.all(color: AppColors.border),
-          ),
-          child: const Icon(Icons.photo_outlined,
-              color: AppColors.textSecondary, size: 22),
-        ),
-        const SizedBox(width: AppColors.s32),
+    return const Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          CircularProgressIndicator(color: AppColors.primary),
+          SizedBox(height: 16),
+          Text('Đang khởi động camera...',
+              style: TextStyle(color: Colors.white70)),
+        ],
+      ),
+    );
+  }
+}
 
-        // Capture button
-        GestureDetector(
-          onTap: onCapture,
-          child: Container(
-            width: 72, height: 72,
-            decoration: BoxDecoration(
-              color: AppColors.primary,
-              shape: BoxShape.circle,
-              boxShadow: [
-                BoxShadow(
-                  color: AppColors.primary.withOpacity(0.4),
-                  blurRadius: 16, spreadRadius: 4,
-                ),
-              ],
+class _ErrorView extends StatelessWidget {
+  final String     message;
+  final VoidCallback onRetry;
+  const _ErrorView({required this.message, required this.onRetry});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.camera_alt_outlined,
+                size: 64, color: Colors.white30),
+            const SizedBox(height: 16),
+            Text(message,
+                style: const TextStyle(color: Colors.white70),
+                textAlign: TextAlign.center),
+            const SizedBox(height: 24),
+            ElevatedButton.icon(
+              onPressed: onRetry,
+              icon:  const Icon(Icons.refresh),
+              label: const Text('Thử lại'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
+              ),
             ),
-            child: const Icon(Icons.camera_alt,
-                color: Colors.white, size: 32),
-          ),
+            const SizedBox(height: 12),
+            TextButton(
+              onPressed: openAppSettings,
+              child: const Text('Mở cài đặt quyền',
+                  style: TextStyle(color: Colors.white54)),
+            ),
+          ],
         ),
-        const SizedBox(width: AppColors.s32),
-
-        // Flip camera button
-        Container(
-          width: 48, height: 48,
-          decoration: BoxDecoration(
-            color: AppColors.surface,
-            shape: BoxShape.circle,
-            border: Border.all(color: AppColors.border),
-          ),
-          child: const Icon(Icons.flip_camera_ios_outlined,
-              color: AppColors.textSecondary, size: 22),
-        ),
-      ],
+      ),
     );
   }
 }

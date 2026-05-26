@@ -29,7 +29,16 @@ class AppRouter {
       GoRoute(path: '/register',     builder: (c, s) => const RegisterScreen()),
       GoRoute(path: '/home',         builder: (c, s) => const HomeScreen()),
       GoRoute(path: '/scan',         builder: (c, s) => const ScanScreen()),
-      GoRoute(path: '/scan-result',  builder: (c, s) => const ScanResultScreen()),
+      GoRoute(
+        path: '/scan-result',
+        builder: (context, state) {
+          final extra = state.extra as Map<String, dynamic>;
+          return ScanResultScreen(
+            imagePath: extra['imagePath'] as String,
+            scanId:    extra['scanId']    as int,
+          );
+        },
+      ),
       GoRoute(path: '/scan-guide',   builder: (c, s) => const ScanGuideStep1Screen()),
       GoRoute(path: '/scan-guide-2', builder: (c, s) => const ScanGuideStep2Screen()),
       GoRoute(path: '/profile', builder: (c, s) => const ProfileScreen()),
