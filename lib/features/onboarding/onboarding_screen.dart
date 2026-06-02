@@ -77,6 +77,8 @@ class _OnboardingPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final screenHeight = MediaQuery.of(context).size.height;
+    // bottomPadding: lấy inset thực tế của device (gesture nav, button nav, v.v.)
+    final bottomPadding = MediaQuery.of(context).padding.bottom;
 
     return SafeArea(
       child: Padding(
@@ -102,9 +104,8 @@ class _OnboardingPage extends StatelessWidget {
               ),
             ),
 
-            // ── Hero image ───────────────────────────────────────────────
             SizedBox(
-              height: screenHeight * 0.42,
+              height: screenHeight * 0.38,
               width: double.infinity,
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(20),
@@ -198,7 +199,7 @@ class _OnboardingPage extends StatelessWidget {
               ),
             ],
 
-            const SizedBox(height: AppColors.s32),
+            SizedBox(height: bottomPadding > 0 ? AppColors.s16 : AppColors.s32),
           ],
         ),
       ),
@@ -273,13 +274,10 @@ class _AiScanHero extends StatelessWidget {
     return Stack(
       fit: StackFit.expand,
       children: [
-        // ── Ảnh thực ────────────────────────────────────────────────────
         Image.asset(
           'assets/images/onboarding_1.png',
           fit: BoxFit.cover,
         ),
-
-        // ── Gradient overlay phía dưới ───────────────────────────────────
         Align(
           alignment: Alignment.bottomCenter,
           child: Container(
@@ -296,8 +294,6 @@ class _AiScanHero extends StatelessWidget {
             ),
           ),
         ),
-
-        // ── Vòng tròn scan ───────────────────────────────────────────────
         Center(
           child: Container(
             width: 180,
@@ -308,8 +304,6 @@ class _AiScanHero extends StatelessWidget {
             ),
           ),
         ),
-
-        // ── Progress bar ─────────────────────────────────────────────────
         Positioned(
           bottom: AppColors.s24,
           left: AppColors.s24,
@@ -327,8 +321,7 @@ class _AiScanHero extends StatelessWidget {
                 child: const LinearProgressIndicator(
                   value: 0.67,
                   backgroundColor: Colors.white24,
-                  valueColor:
-                      AlwaysStoppedAnimation<Color>(Colors.white),
+                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                   minHeight: 6,
                 ),
               ),
@@ -351,18 +344,9 @@ class _FeatureRow extends StatelessWidget {
   const _FeatureRow();
 
   static const _features = [
-    _FeatureItem(
-      icon: 'assets/images/onboarding_icon_1.png',
-      label: 'MỤN & SEO',
-    ),
-    _FeatureItem(
-      icon: 'assets/images/onboarding_icon_2.png',
-      label: 'LỖ CHÂN LÔNG',
-    ),
-    _FeatureItem(
-      icon: 'assets/images/onboarding_icon_3.png',
-      label: 'NẾP NHĂN',
-    ),
+    _FeatureItem(icon: 'assets/images/onboarding_icon_1.png', label: 'MỤN & SEO'),
+    _FeatureItem(icon: 'assets/images/onboarding_icon_2.png', label: 'LỖ CHÂN LÔNG'),
+    _FeatureItem(icon: 'assets/images/onboarding_icon_3.png', label: 'NẾP NHĂN'),
   ];
 
   @override
@@ -396,10 +380,7 @@ class _FeatureChip extends StatelessWidget {
           child: ClipOval(
             child: Padding(
               padding: const EdgeInsets.all(10),
-              child: Image.asset(
-                item.icon,
-                fit: BoxFit.contain,
-              ),
+              child: Image.asset(item.icon, fit: BoxFit.contain),
             ),
           ),
         ),

@@ -38,27 +38,31 @@ class MainScaffold extends StatelessWidget {
         notchMargin: 8,
         color: AppColors.surface,
         elevation: 8,
-        child: SizedBox(
-          height: 60,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [
-              _NavItem(icon: Icons.home_outlined, activeIcon: Icons.home,
-                  label: 'TRANG CHỦ', index: 0, currentIndex: currentIndex,
-                  onTap: (i) => _onNavTap(context, i)),
-              _NavItem(icon: Icons.bar_chart_outlined, activeIcon: Icons.bar_chart,
-                  label: 'PHÂN TÍCH', index: 1, currentIndex: currentIndex,
-                  onTap: (i) => _onNavTap(context, i)),
+        padding: EdgeInsets.zero,
+        child: SafeArea(
+          top: false, 
+          child: SizedBox(
+            height: 60,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: [
+                _NavItem(icon: Icons.home_outlined, activeIcon: Icons.home,
+                    label: 'TRANG CHỦ', index: 0, currentIndex: currentIndex,
+                    onTap: (i) => _onNavTap(context, i)),
+                _NavItem(icon: Icons.bar_chart_outlined, activeIcon: Icons.bar_chart,
+                    label: 'PHÂN TÍCH', index: 1, currentIndex: currentIndex,
+                    onTap: (i) => _onNavTap(context, i)),
 
-              const SizedBox(width: 48), 
+                const SizedBox(width: 48),
 
-              _NavItem(icon: Icons.storefront_outlined, activeIcon: Icons.storefront,
-                  label: 'SẢN PHẨM', index: 2, currentIndex: currentIndex,
-                  onTap: (i) => _onNavTap(context, i)),
-              _NavItem(icon: Icons.person_outline, activeIcon: Icons.person,
-                  label: 'HỒ SƠ', index: 3, currentIndex: currentIndex,
-                  onTap: (i) => _onNavTap(context, i)),
-            ],
+                _NavItem(icon: Icons.storefront_outlined, activeIcon: Icons.storefront,
+                    label: 'SẢN PHẨM', index: 2, currentIndex: currentIndex,
+                    onTap: (i) => _onNavTap(context, i)),
+                _NavItem(icon: Icons.person_outline, activeIcon: Icons.person,
+                    label: 'HỒ SƠ', index: 3, currentIndex: currentIndex,
+                    onTap: (i) => _onNavTap(context, i)),
+              ],
+            ),
           ),
         ),
       ),

@@ -125,9 +125,9 @@ class _ScanScreenState extends State<ScanScreen>
   if (!mounted) return;
   setState(() => _isCapturing = false);
 
-  context.go('/scan-result', extra: {
-    'imagePath': result.localPath,
-    'scanId':    result.scanId,
+  context.push('/scan-result', extra: {
+  'imagePath': result.localPath,
+  'scanId': result.scanId,
   });
 }
 

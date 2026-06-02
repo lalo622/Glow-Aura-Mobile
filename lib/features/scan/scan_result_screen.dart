@@ -85,7 +85,7 @@ class _ScanResultScreenState extends State<ScanResultScreen> {
       appBar: AppBar(
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
-          onPressed: () => context.go('/scan'),
+          onPressed: () => context.pop(),
         ),
         title: Text('Kết quả phân tích', style: AppTextStyles.title()),
         bottom: PreferredSize(
@@ -159,7 +159,10 @@ class _ScanResultScreenState extends State<ScanResultScreen> {
                 width: double.infinity,
                 height: 52,
                 child: ElevatedButton(
-                  onPressed: () => context.go('/scan-detail'),
+                  onPressed: () => context.push('/scan-detail', extra: {
+                    'imagePath': widget.imagePath,
+                    'scanId': widget.scanId,
+                  }),
                   child: const Text('Kết quả chi tiết'),
                 ),
               ),

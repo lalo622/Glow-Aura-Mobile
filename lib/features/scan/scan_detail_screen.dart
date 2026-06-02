@@ -3,8 +3,14 @@ import 'package:go_router/go_router.dart';
 import 'package:glow_aura/core/theme/app_theme.dart';
 
 class ScanDetailScreen extends StatelessWidget {
-  const ScanDetailScreen({super.key});
-
+  final String imagePath;
+  final int scanId;
+  const ScanDetailScreen({
+    super.key,
+    required this.imagePath,
+    required this.scanId,
+  });
+  
   static const _zones = [
     _ZoneData(
       number: '1',
@@ -29,7 +35,7 @@ class ScanDetailScreen extends StatelessWidget {
       appBar: AppBar(
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
-          onPressed: () => context.go('/scan-result'),
+          onPressed: () => context.pop(),
         ),
         title: Text('Chi tiết Mụn & Đốm', style: AppTextStyles.title()),
         actions: [

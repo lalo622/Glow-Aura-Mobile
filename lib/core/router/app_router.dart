@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:glow_aura/features/auth/login_screen.dart';
 import 'package:glow_aura/features/auth/register_screen.dart';
@@ -32,10 +33,19 @@ class AppRouter {
       GoRoute(
         path: '/scan-result',
         builder: (context, state) {
-          final extra = state.extra as Map<String, dynamic>;
+          final extra = state.extra;
+
+          if (extra == null || extra is! Map<String, dynamic>) {
+            return const Scaffold(
+              body: Center(
+                child: Text('Không có dữ liệu kết quả'),
+              ),
+            );
+          }
+
           return ScanResultScreen(
             imagePath: extra['imagePath'] as String,
-            scanId:    extra['scanId']    as int,
+            scanId: extra['scanId'] as int,
           );
         },
       ),
@@ -44,7 +54,21 @@ class AppRouter {
       GoRoute(path: '/profile', builder: (c, s) => const ProfileScreen()),
       GoRoute(path: '/settings', builder: (c, s) => const SettingsScreen()),
       GoRoute(path: '/history', builder: (c, s) => const HistoryScreen()),
-      GoRoute(path: '/scan-detail',  builder: (c, s) => const ScanDetailScreen()),
+      GoRoute(
+        path: '/scan-detail',
+        builder: (context, state) {
+          final extra = state.extra;
+          if (extra == null || extra is! Map<String, dynamic>) {
+            return const Scaffold(
+              body: Center(child: Text('Không có dữ liệu')),
+            );
+          }
+          return ScanDetailScreen(
+            imagePath: extra['imagePath'] as String,
+            scanId: extra['scanId'] as int,
+          );
+        },
+      ),
       GoRoute(path: '/advice',       builder: (c, s) => const AdviceScreen()),
       GoRoute(path: '/edit-profile', builder: (c, s) => const EditProfileScreen()),
       GoRoute(path: '/products', builder: (c, s) => const ProductListScreen()),
