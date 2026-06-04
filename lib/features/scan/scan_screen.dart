@@ -1,6 +1,9 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:glow_aura/core/theme/app_theme.dart';
@@ -9,39 +12,38 @@ import 'camera_service.dart';
 import 'data/scan_database.dart';
 import 'data/image_save_service.dart';
 
-class ScanScreen extends StatefulWidget {
+class ScanScreen extends ConsumerStatefulWidget {
   const ScanScreen({super.key});
 
   @override
-  State<ScanScreen> createState() => _ScanScreenState();
+  ConsumerState<ScanScreen> createState() => _ScanScreenState();
 }
 
-class _ScanScreenState extends State<ScanScreen>
-    with SingleTickerProviderStateMixin {
-  // ── Camera & detection ────────────────────────────────────────────────────
+class _ScanScreenState extends ConsumerState<ScanScreen>
+    with TickerProviderStateMixin {
   final _cameraService = CameraService();
   StreamSubscription<SmoothedFaceState>? _detectionSub;
-
-  // UI  nhận SmoothedFaceState 
   SmoothedFaceState _smoothedState = SmoothedFaceState.empty();
-
-  // ── Capture state ─────────────────────────────────────────────────────────
-  bool _hasTriggeredCapture = false; 
-  bool _isCountingDown      = false;
-  int  _countdown           = 0;
+  bool _hasTriggeredCapture = false;
   bool _isCapturing         = false;
-
-  // ── UI state ──────────────────────────────────────────────────────────────
   bool    _isInitializing = true;
   String? _errorMessage;
+  DateTime? _stableStartTime;
+  static const _requiredHoldMs = 2000;
+  late final AnimationController _progressController;
+  double _progressTarget = 0.0;
+  late final AnimationController _shutterController;
+  late final Animation<double>   _shutterOpacity;
 
-  // ── Pulse animation ───────────────────────────────────────────────────────
+
   late final AnimationController _pulseController;
   late final Animation<double>   _pulseAnimation;
 
   @override
   void initState() {
     super.initState();
+
+    // Pulse
     _pulseController = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 2),
@@ -49,6 +51,31 @@ class _ScanScreenState extends State<ScanScreen>
     _pulseAnimation = Tween<double>(begin: 0.95, end: 1.05).animate(
       CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
     );
+
+    // Progress Ring 
+    _progressController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 120), 
+    );
+
+    // Shutter Flash — 0 → 0.6 → 0 trong 180ms
+    _shutterController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 180),
+    );
+    _shutterOpacity = TweenSequence<double>([
+      TweenSequenceItem(
+          tween: Tween(begin: 0.0, end: 0.65), weight: 30),
+      TweenSequenceItem(
+          tween: Tween(begin: 0.65, end: 0.0), weight: 70),
+    ]).animate(CurvedAnimation(
+      parent: _shutterController,
+      curve: Curves.easeOut,
+    ));
+
+    ref.read(scanDatabaseProvider).cleanOldScans();
+    ref.read(imageSaveServiceProvider).retryPendingUploads();
+
     _initCamera();
   }
 
@@ -70,19 +97,48 @@ class _ScanScreenState extends State<ScanScreen>
     try {
       await _cameraService.initialize();
 
-      // Lắng nghe smoothedStream — đã qua hysteresis & window filter
-      _detectionSub = _cameraService.smoothedStream.listen((state) {
-        if (!mounted) return;
-        setState(() => _smoothedState = state);
+       _detectionSub = _cameraService.smoothedStream.listen((state) {
+      if (!mounted) return;
+      setState(() => _smoothedState = state);
 
-        if (!_hasTriggeredCapture &&
-            !_isCountingDown &&
-            state.readyToCapture) {
-          _hasTriggeredCapture = true;
-          _isCountingDown      = true;
-          _startCountdown();
+      final isReady = state.isFaceStable
+          && state.isCenteredStable
+          && state.isFaceLargeEnough
+          && state.isLightingStable;
+
+      if (isReady) {
+        _stableStartTime ??= DateTime.now();
+
+        final heldMs = DateTime.now()
+            .difference(_stableStartTime!)
+            .inMilliseconds;
+        final holdProgress = (heldMs / _requiredHoldMs).clamp(0.0, 1.0);
+
+        final combinedProgress = (state.captureProgress * 0.5 + holdProgress * 0.5);
+
+        if (combinedProgress != _progressTarget) {
+          _progressController.animateTo(
+            combinedProgress,
+            duration: const Duration(milliseconds: 150),
+            curve: Curves.easeOut,
+          );
+          _progressTarget = combinedProgress;
         }
-      });
+
+        if (!_hasTriggeredCapture && holdProgress >= 1.0 && state.captureProgress >= 0.8) {
+          _hasTriggeredCapture = true;
+          _onCapture();
+        }
+      } else {
+        _stableStartTime = null;
+
+        if (_progressTarget > 0) {
+          _progressController.animateTo(0.0,
+              duration: const Duration(milliseconds: 200));
+          _progressTarget = 0.0;
+        }
+      }
+    });
 
       setState(() => _isInitializing = false);
     } catch (e) {
@@ -93,61 +149,56 @@ class _ScanScreenState extends State<ScanScreen>
     }
   }
 
-  // Countdown hoàn toàn độc lập với detection — lock bởi _isCountingDown
-  Future<void> _startCountdown() async {
-    for (int i = 3; i >= 1; i--) {
-      if (!mounted) return;
-      setState(() => _countdown = i);
-      await Future.delayed(const Duration(seconds: 1));
+    Future<void> _onCapture() async {
+    if (_isCapturing) return;
+    HapticFeedback.mediumImpact();
+    setState(() => _isCapturing = true);
+
+    await _shutterController.forward(from: 0.0);
+
+    final file = await _cameraService.takePicture();
+
+    if (file == null) {
+      setState(() => _isCapturing = false);
+      _resetCaptureState();
+      return;
     }
+
+    final imageSaveService = ref.read(imageSaveServiceProvider);
+    final result = await imageSaveService.saveScan(file.path);
+
     if (!mounted) return;
-    setState(() => _countdown = 0);
-    _isCountingDown = false;
-    _onCapture();
-  }
-
-  Future<void> _onCapture() async {
-  if (_isCapturing) return;
-  setState(() => _isCapturing = true);
-
-  final file = await _cameraService.takePicture();
-
-  if (file == null) {
     setState(() => _isCapturing = false);
-    _resetCaptureState();
-    return;
-  }
 
-  final db = ScanDatabase();
-  final imageSaveService = ImageSaveService(db);
-  final result = await imageSaveService.saveScan(file.path);
-
-  if (!mounted) return;
-  setState(() => _isCapturing = false);
-
-  context.push('/scan-result', extra: {
-  'imagePath': result.localPath,
-  'scanId': result.scanId,
-  });
-}
-
-  /// Reset toàn bộ capture state 
-  Future<void> _resetCaptureState() async {
-    setState(() {
-      _hasTriggeredCapture = false;
-      _isCountingDown      = false;
-      _countdown           = 0;
-      _isCapturing         = false;
+    await context.push('/scan-result', extra: {
+      'imagePath': result.localPath,
+      'scanId':    result.scanId,
     });
 
+    if (mounted) {
+      await _resetCaptureState();
+    }
+  }
+
+    Future<void> _resetCaptureState() async {
+    setState(() {
+      _hasTriggeredCapture = false;
+      _isCapturing         = false;
+      _progressTarget      = 0.0;
+      _stableStartTime     = null; 
+    });
+    _progressController.animateTo(0.0,
+        duration: const Duration(milliseconds: 80));
     await _cameraService.restartStream();
   }
 
   @override
-  void dispose() {
+  Future<void> dispose() async {
     _pulseController.dispose();
-    _detectionSub?.cancel();
-    _cameraService.dispose();
+    _progressController.dispose();
+    _shutterController.dispose();
+    await _detectionSub?.cancel();
+    await _cameraService.dispose();
     super.dispose();
   }
 
@@ -177,34 +228,57 @@ class _ScanScreenState extends State<ScanScreen>
             ? const _LoadingView()
             : _errorMessage != null
                 ? _ErrorView(message: _errorMessage!, onRetry: _initCamera)
-                : _CameraBody(
-                    cameraService:  _cameraService,
-                    smoothedState:  _smoothedState,
-                    pulseAnimation: _pulseAnimation,
-                    isCapturing:    _isCapturing,
-                    countdown:      _countdown,
-                    onCapture:      _onCapture,
+                : Stack(
+                    children: [
+                      _CameraBody(
+                        cameraService:      _cameraService,
+                        smoothedState:      _smoothedState,
+                        pulseAnimation:     _pulseAnimation,
+                        progressController: _progressController,
+                        isCapturing:        _isCapturing,
+                        onCapture:          _onCapture,
+                      ),
+
+                      // ── [MỚI] Shutter Flash overlay ──────────────────────
+                      AnimatedBuilder(
+                        animation: _shutterOpacity,
+                        builder: (_, __) {
+                          if (_shutterOpacity.value == 0.0) {
+                            return const SizedBox.shrink();
+                          }
+                          return Positioned.fill(
+                            child: IgnorePointer(
+                              child: Container(
+                                color: Colors.white
+                                    .withOpacity(_shutterOpacity.value),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ],
                   ),
       ),
     );
   }
 }
 
-// Camera Body
+// ─────────────────────────────────────────────────────────────────────────────
+
 class _CameraBody extends StatelessWidget {
   final CameraService      cameraService;
   final SmoothedFaceState  smoothedState;
   final Animation<double>  pulseAnimation;
+  final AnimationController progressController; 
   final bool               isCapturing;
-  final int                countdown;
   final VoidCallback       onCapture;
 
   const _CameraBody({
     required this.cameraService,
     required this.smoothedState,
     required this.pulseAnimation,
+    required this.progressController,
     required this.isCapturing,
-    required this.countdown,
     required this.onCapture,
   });
 
@@ -216,15 +290,15 @@ class _CameraBody extends StatelessWidget {
           child: Padding(
             padding: const EdgeInsets.all(AppColors.s16),
             child: _CameraPreviewArea(
-              controller:     cameraService.controller!,
-              smoothedState:  smoothedState,
-              pulseAnimation: pulseAnimation,
-              countdown:      countdown,
+              controller:         cameraService.controller!,
+              smoothedState:      smoothedState,
+              pulseAnimation:     pulseAnimation,
+              progressController: progressController,
             ),
           ),
         ),
 
-        _ScanStatusBar(smoothedState: smoothedState, countdown: countdown),
+        _ScanStatusBar(smoothedState: smoothedState),
         const SizedBox(height: AppColors.s16),
 
         Padding(
@@ -277,18 +351,19 @@ class _CameraBody extends StatelessWidget {
   }
 }
 
-// Camera Preview Area
+// ─────────────────────────────────────────────────────────────────────────────
+
 class _CameraPreviewArea extends StatelessWidget {
-  final CameraController   controller;
-  final SmoothedFaceState  smoothedState;
-  final Animation<double>  pulseAnimation;
-  final int                countdown;
+  final CameraController    controller;
+  final SmoothedFaceState   smoothedState;
+  final Animation<double>   pulseAnimation;
+  final AnimationController progressController; // [MỚI]
 
   const _CameraPreviewArea({
     required this.controller,
     required this.smoothedState,
     required this.pulseAnimation,
-    required this.countdown,
+    required this.progressController,
   });
 
   @override
@@ -302,6 +377,7 @@ class _CameraPreviewArea extends StatelessWidget {
       child: Stack(
         fit: StackFit.expand,
         children: [
+          // Camera preview
           FittedBox(
             fit: BoxFit.cover,
             child: SizedBox(
@@ -311,6 +387,7 @@ class _CameraPreviewArea extends StatelessWidget {
             ),
           ),
 
+          // Radial vignette
           Container(
             decoration: BoxDecoration(
               gradient: RadialGradient(
@@ -326,15 +403,26 @@ class _CameraPreviewArea extends StatelessWidget {
 
           Center(
             child: AnimatedBuilder(
-              animation: pulseAnimation,
+              animation: Listenable.merge([pulseAnimation, progressController]),
               builder: (_, __) {
-                // Pulse chỉ khi chưa detect face
+                final progress = progressController.value;
                 final scale = smoothedState.isFaceStable ? 1.0 : pulseAnimation.value;
+
+                final ringColor = Color.lerp(
+                  const Color(0xFFFFB300), 
+                  const Color(0xFF4CAF50), 
+                  progress,
+                )!;
+
                 return Transform.scale(
                   scale: scale,
                   child: CustomPaint(
                     size: const Size(220, 290),
-                    painter: _DashedOvalPainter(color: ovalColor),
+                    painter: _ProgressRingPainter(
+                      progress:  progress,
+                      ringColor: ringColor,
+                      baseColor: ovalColor,
+                    ),
                   ),
                 );
               },
@@ -343,25 +431,7 @@ class _CameraPreviewArea extends StatelessWidget {
 
           ..._buildScanCorners(ovalColor),
 
-          if (countdown > 0)
-            Center(
-              child: Text(
-                '$countdown',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 96,
-                  fontWeight: FontWeight.bold,
-                  shadows: [
-                    Shadow(
-                        blurRadius: 20,
-                        color: Colors.black54,
-                        offset: Offset(0, 2)),
-                  ],
-                ),
-              ),
-            ),
-
-          if (smoothedState.isFaceStable && countdown == 0)
+          if (smoothedState.isFaceStable)
             const Positioned(
               bottom: 16,
               left: 0,
@@ -387,19 +457,112 @@ class _CameraPreviewArea extends StatelessWidget {
   }
 }
 
-// Scan Status Bar
+
+class _ProgressRingPainter extends CustomPainter {
+  final double progress;   
+  final Color  ringColor;  
+  final Color  baseColor;  
+
+  const _ProgressRingPainter({
+    required this.progress,
+    required this.ringColor,
+    required this.baseColor,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final rect = Rect.fromLTWH(0, 0, size.width, size.height);
+
+    final basePaint = Paint()
+      ..color       = baseColor.withOpacity(0.35)
+      ..strokeWidth = 2.0
+      ..style       = PaintingStyle.stroke;
+
+    const dashWidth = 12.0;
+    const dashSpace =  6.0;
+    final basePath = Path()..addOval(rect);
+    for (final metric in basePath.computeMetrics()) {
+      double distance = 0;
+      while (distance < metric.length) {
+        final end = (distance + dashWidth).clamp(0.0, metric.length);
+        canvas.drawPath(metric.extractPath(distance, end), basePaint);
+        distance += dashWidth + dashSpace;
+      }
+    }
+
+    if (progress <= 0.0) return;
+
+    final progressPaint = Paint()
+      ..color       = ringColor
+      ..strokeWidth = 3.5
+      ..style       = PaintingStyle.stroke
+      ..strokeCap   = StrokeCap.round;
+
+    if (progress > 0.7) {
+      final glowPaint = Paint()
+        ..color       = ringColor.withOpacity(0.3 * ((progress - 0.7) / 0.3))
+        ..strokeWidth = 8.0
+        ..style       = PaintingStyle.stroke
+        ..maskFilter  = const MaskFilter.blur(BlurStyle.normal, 4);
+      _drawProgressArc(canvas, rect, glowPaint, progress);
+    }
+
+    _drawProgressArc(canvas, rect, progressPaint, progress);
+
+    if (progress > 0.02) {
+      final angle = -math.pi / 2 + 2 * math.pi * progress;
+      final cx = rect.center.dx + rect.width  / 2 * math.cos(angle);
+      final cy = rect.center.dy + rect.height / 2 * math.sin(angle);
+      canvas.drawCircle(
+        Offset(cx, cy),
+        4.5,
+        Paint()..color = ringColor,
+      );
+    }
+  }
+
+  void _drawProgressArc(
+      Canvas canvas, Rect rect, Paint paint, double progress) {
+
+    final fullPath = Path()..addOval(rect);
+    for (final metric in fullPath.computeMetrics()) {
+      final end = metric.length * progress;
+      const startFraction = 0.25; 
+      final startDistance = metric.length * startFraction;
+      final endDistance   = startDistance + end;
+
+      if (endDistance <= metric.length) {
+        canvas.drawPath(
+            metric.extractPath(startDistance, endDistance), paint);
+      } else {
+        canvas.drawPath(
+            metric.extractPath(startDistance, metric.length), paint);
+        canvas.drawPath(
+            metric.extractPath(0, endDistance - metric.length), paint);
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _ProgressRingPainter old) =>
+      old.progress != progress ||
+      old.ringColor != ringColor ||
+      old.baseColor != baseColor;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 class _ScanStatusBar extends StatelessWidget {
   final SmoothedFaceState smoothedState;
-  final int               countdown;
 
-  const _ScanStatusBar({required this.smoothedState, required this.countdown});
+  const _ScanStatusBar({required this.smoothedState});
 
   String get _statusText {
-    if (countdown > 0)                      return 'Giữ yên, chuẩn bị chụp...';
-    if (!smoothedState.isFaceStable)        return 'Hướng camera về phía khuôn mặt';
-    if (!smoothedState.isCenteredStable)    return 'Di chuyển để căn giữa khuôn mặt';
-    if (!smoothedState.isLightingStable)    return 'Cần thêm ánh sáng';
-    return 'Đang phân tích cấu trúc da...';
+    if (!smoothedState.isFaceStable)     return 'Hướng camera về phía khuôn mặt';
+    if (!smoothedState.isCenteredStable) return 'Di chuyển để căn giữa khuôn mặt';
+    if (!smoothedState.isLightingStable) return 'Cần thêm ánh sáng';
+    if (smoothedState.captureProgress < 1.0) return 'Giữ yên, đang chuẩn bị chụp...';
+    return 'Đang chụp...';
   }
 
   @override
@@ -430,7 +593,7 @@ class _ScanStatusBar extends StatelessWidget {
               ),
               AnimatedSwitcher(
                 duration: const Duration(milliseconds: 300),
-                child: (isReady || countdown > 0)
+                child: isReady
                     ? const Icon(Icons.check_circle,
                         color: AppColors.success, size: 20)
                     : const SizedBox(
@@ -444,10 +607,24 @@ class _ScanStatusBar extends StatelessWidget {
               ),
             ],
           ),
-          if (isReady && countdown == 0) ...[
+
+          if (isReady && smoothedState.captureProgress > 0) ...[
             const SizedBox(height: AppColors.s8),
-            Text('GIỮ YÊN VỊ TRÍ TRONG VÀI GIÂY',
-                style: AppTextStyles.label(color: AppColors.primary)),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: LinearProgressIndicator(
+                value: smoothedState.captureProgress,
+                backgroundColor: Colors.white12,
+                valueColor: AlwaysStoppedAnimation<Color>(
+                  Color.lerp(
+                    const Color(0xFFFFB300),
+                    const Color(0xFF4CAF50),
+                    smoothedState.captureProgress,
+                  )!,
+                ),
+                minHeight: 3,
+              ),
+            ),
           ],
         ],
       ),
@@ -455,7 +632,7 @@ class _ScanStatusBar extends StatelessWidget {
   }
 }
 
-// Camera Controls
+
 class _CameraControls extends StatelessWidget {
   final bool         isCapturing;
   final bool         isReadyToCapture;
@@ -507,7 +684,7 @@ class _CameraControls extends StatelessWidget {
 }
 
 class _CircleButton extends StatelessWidget {
-  final IconData   icon;
+  final IconData     icon;
   final VoidCallback onTap;
   const _CircleButton({required this.icon, required this.onTap});
 
@@ -529,7 +706,6 @@ class _CircleButton extends StatelessWidget {
   }
 }
 
-// Misc Widgets
 class _DetectedBadge extends StatelessWidget {
   const _DetectedBadge();
 
@@ -553,34 +729,6 @@ class _DetectedBadge extends StatelessWidget {
       ),
     );
   }
-}
-
-class _DashedOvalPainter extends CustomPainter {
-  final Color color;
-  const _DashedOvalPainter({required this.color});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color      = color
-      ..strokeWidth = 2.5
-      ..style      = PaintingStyle.stroke;
-    const dashWidth = 12.0;
-    const dashSpace =  6.0;
-    final path = Path()
-      ..addOval(Rect.fromLTWH(0, 0, size.width, size.height));
-    for (final metric in path.computeMetrics()) {
-      double distance = 0;
-      while (distance < metric.length) {
-        final end = (distance + dashWidth).clamp(0.0, metric.length);
-        canvas.drawPath(metric.extractPath(distance, end), paint);
-        distance += dashWidth + dashSpace;
-      }
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant _DashedOvalPainter old) => old.color != color;
 }
 
 class _ScanCorner extends StatelessWidget {
@@ -608,10 +756,10 @@ class _CornerPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color     = color
+      ..color       = color
       ..strokeWidth = 3
-      ..style     = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round;
+      ..style       = PaintingStyle.stroke
+      ..strokeCap   = StrokeCap.round;
     final x = left ? 0.0 : size.width;
     final y = top  ? 0.0 : size.height;
     canvas.drawLine(Offset(x, y),
@@ -685,7 +833,7 @@ class _LoadingView extends StatelessWidget {
 }
 
 class _ErrorView extends StatelessWidget {
-  final String     message;
+  final String       message;
   final VoidCallback onRetry;
   const _ErrorView({required this.message, required this.onRetry});
 

@@ -8,43 +8,56 @@ import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
 class FaceDetectionResult {
   final bool isFaceDetected;
   final bool isFaceCentered;
+  final bool isFaceLargeEnough;
   final bool isLightingGood;
+  final bool isEyesOpen;
   final double? luminance;
 
   const FaceDetectionResult({
     required this.isFaceDetected,
     required this.isFaceCentered,
+    required this.isFaceLargeEnough,
     required this.isLightingGood,
+    required this.isEyesOpen,
     this.luminance,
   });
 
   factory FaceDetectionResult.empty() => const FaceDetectionResult(
         isFaceDetected: false,
         isFaceCentered: false,
+        isFaceLargeEnough: false,
         isLightingGood: false,
+        isEyesOpen: true,
       );
 }
 
 class SmoothedFaceState {
   final bool isFaceStable;
   final bool isCenteredStable;
+  final bool isFaceLargeEnough;
   final bool isLightingStable;
   final double? luminance;
   final bool readyToCapture;
 
+  final double captureProgress;
+
   const SmoothedFaceState({
     required this.isFaceStable,
     required this.isCenteredStable,
+    required this.isFaceLargeEnough,
     required this.isLightingStable,
     this.luminance,
     required this.readyToCapture,
+    required this.captureProgress,
   });
 
   factory SmoothedFaceState.empty() => const SmoothedFaceState(
         isFaceStable: false,
         isCenteredStable: false,
+        isFaceLargeEnough: false,
         isLightingStable: false,
         readyToCapture: false,
+        captureProgress: 0.0,
       );
 }
 
@@ -55,22 +68,31 @@ class CameraService {
   bool _isProcessing = false;
   bool _isDisposed = false;
 
-  // Throttle: 150ms ≈ 6–7 FPS 
+  // ── Adaptive throttle ──────────────────────────────────────────────────────
+  static const _minThrottleMs = 80;
+  static const _maxThrottleMs = 400;
+  int _adaptiveThrottleMs = 150;
   DateTime _lastProcessed = DateTime.fromMillisecondsSinceEpoch(0);
-  static const _throttleMs = 150;
-  static const _windowSize = 8;
-  static const _faceRiseThreshold = 5;  // cần 5/8 frame có face để "lên"
-  static const _faceFallThreshold = 3;  // cần < 3/8 frame để "xuống"
-  static const _captureThreshold  = 6;  // cần 6/8 "all good" để trigger capture
+
+  // ── Window & hysteresis config ─────────────────────────────────────────────
+  static const _windowSize        = 12;
+  static const _faceRiseThreshold = 8;
+  static const _faceFallThreshold = 4;
+  static const _captureThreshold  = 10;
+
+  // ── Face size validation ───────────────────────────────────────────────────
+  static const _minFaceSizeRatio = 0.38;
 
   final List<bool> _faceWindow      = [];
   final List<bool> _centeredWindow  = [];
+  final List<bool> _sizeWindow      = [];
   final List<bool> _lightingWindow  = [];
   final List<bool> _allGoodWindow   = [];
 
   // Hysteresis state
   bool _hysteresisFace     = false;
   bool _hysteresisCentered = false;
+  bool _hysteresisSize     = false;
   bool _hysteresisLighting = false;
 
   // ── Streams ────────────────────────────────────────────────────────────────
@@ -78,7 +100,6 @@ class CameraService {
       StreamController<FaceDetectionResult>.broadcast();
   Stream<FaceDetectionResult> get rawStream => _rawController.stream;
 
-  // smoothedStream: UI lắng nghe stream này
   final _smoothedController =
       StreamController<SmoothedFaceState>.broadcast();
   Stream<SmoothedFaceState> get smoothedStream => _smoothedController.stream;
@@ -105,9 +126,10 @@ class CameraService {
     );
 
     await _controller!.initialize();
+
     _faceDetector = FaceDetector(
       options: FaceDetectorOptions(
-        enableClassification: false,
+        enableClassification: true,
         enableTracking: true,
         minFaceSize: 0.1,
         performanceMode: FaceDetectorMode.accurate,
@@ -120,11 +142,13 @@ class CameraService {
   // ── Frame processing ───────────────────────────────────────────────────────
   Future<void> _processFrame(CameraImage image) async {
     final now = DateTime.now();
-    if (now.difference(_lastProcessed).inMilliseconds < _throttleMs) return;
+    if (now.difference(_lastProcessed).inMilliseconds < _adaptiveThrottleMs) return;
     if (_isProcessing || _isDisposed) return;
 
     _isProcessing = true;
     _lastProcessed = now;
+
+    final processingStart = DateTime.now();
 
     try {
       final inputImage = _convertToInputImage(image);
@@ -146,8 +170,14 @@ class CameraService {
       _pushToWindows(raw);
       _smoothedController.add(_computeSmoothed(luminance));
     } catch (e) {
+      debugPrint('_processFrame error: $e');
     } finally {
       _isProcessing = false;
+
+      final elapsed = DateTime.now()
+          .difference(processingStart)
+          .inMilliseconds;
+      _adaptiveThrottleMs = elapsed.clamp(_minThrottleMs, _maxThrottleMs);
     }
   }
 
@@ -155,13 +185,19 @@ class CameraService {
   void _pushToWindows(FaceDetectionResult raw) {
     _addToWindow(_faceWindow,     raw.isFaceDetected);
     _addToWindow(_centeredWindow, raw.isFaceCentered);
+    _addToWindow(_sizeWindow,     raw.isFaceLargeEnough);
     _addToWindow(_lightingWindow, raw.isLightingGood);
-    _addToWindow(_allGoodWindow,
-        raw.isFaceDetected && raw.isFaceCentered && raw.isLightingGood);
+    _addToWindow(
+      _allGoodWindow,
+      raw.isFaceDetected &&
+          raw.isFaceCentered &&
+          raw.isFaceLargeEnough &&
+          raw.isLightingGood,
+    );
 
-    // Hysteresis: tránh flicker UI
     _hysteresisFace     = _applyHysteresis(_faceWindow,     _hysteresisFace);
     _hysteresisCentered = _applyHysteresis(_centeredWindow, _hysteresisCentered);
+    _hysteresisSize     = _applyHysteresis(_sizeWindow,     _hysteresisSize);
     _hysteresisLighting = _applyHysteresis(_lightingWindow, _hysteresisLighting);
   }
 
@@ -173,9 +209,9 @@ class CameraService {
   bool _applyHysteresis(List<bool> window, bool currentState) {
     if (window.length < _windowSize) return currentState;
     final count = window.where((v) => v).length;
-    if (!currentState && count >= _faceRiseThreshold)  return true;
-    if (currentState  && count <  _faceFallThreshold)  return false;
-    return currentState; 
+    if (!currentState && count >= _faceRiseThreshold) return true;
+    if (currentState  && count <  _faceFallThreshold) return false;
+    return currentState;
   }
 
   SmoothedFaceState _computeSmoothed(double luminance) {
@@ -184,14 +220,18 @@ class CameraService {
         _allGoodWindow.length >= _windowSize &&
         allGoodCount >= _captureThreshold;
 
-    
+    final double captureProgress = _allGoodWindow.isEmpty
+        ? 0.0
+        : (allGoodCount / _windowSize).clamp(0.0, 1.0);
 
     return SmoothedFaceState(
-      isFaceStable:     _hysteresisFace,
-      isCenteredStable: _hysteresisCentered,
-      isLightingStable: _hysteresisLighting,
-      luminance:        luminance,
-      readyToCapture:   readyToCapture,
+      isFaceStable:      _hysteresisFace,
+      isCenteredStable:  _hysteresisCentered,
+      isFaceLargeEnough: _hysteresisSize,
+      isLightingStable:  _hysteresisLighting,
+      luminance:         luminance,
+      readyToCapture:    readyToCapture,
+      captureProgress:   captureProgress,
     );
   }
 
@@ -208,7 +248,9 @@ class CameraService {
       return FaceDetectionResult(
         isFaceDetected: false,
         isFaceCentered: false,
+        isFaceLargeEnough: false,
         isLightingGood: isLightGood,
+        isEyesOpen: true,
         luminance: luminance,
       );
     }
@@ -220,13 +262,22 @@ class CameraService {
     final faceCenterY = face.boundingBox.center.dy;
 
     final isCentered =
-        (faceCenterX - imageWidth / 2).abs()  < imageWidth  * 0.40 &&
-        (faceCenterY - imageHeight / 2).abs() < imageHeight * 0.40;
+        (faceCenterX - imageWidth  / 2).abs() < imageWidth  * 0.30 &&
+        (faceCenterY - imageHeight / 2).abs() < imageHeight * 0.30;
+
+    final faceWidthRatio = face.boundingBox.width / imageWidth;
+    final isFaceLargeEnough = faceWidthRatio >= _minFaceSizeRatio;
+
+    final leftEye  = face.leftEyeOpenProbability  ?? 1.0;
+    final rightEye = face.rightEyeOpenProbability ?? 1.0;
+    final isEyesOpen = leftEye > 0.5 && rightEye > 0.5;
 
     return FaceDetectionResult(
       isFaceDetected: true,
       isFaceCentered: isCentered,
+      isFaceLargeEnough: isFaceLargeEnough,
       isLightingGood: isLightGood,
+      isEyesOpen: isEyesOpen,
       luminance: luminance,
     );
   }
@@ -299,6 +350,13 @@ class CameraService {
     if (!isInitialized) return null;
     try {
       await _controller!.stopImageStream();
+
+      final isEyesOpen = await _checkEyesOpenBeforeCapture();
+      if (!isEyesOpen) {
+        debugPrint('takePicture: eyes closed, aborting capture');
+        return null;
+      }
+
       final file = await _controller!.takePicture();
       return file;
     } catch (e) {
@@ -307,7 +365,37 @@ class CameraService {
     }
   }
 
-  /// Restart stream sau khi chụp xong 
+  Future<bool> _checkEyesOpenBeforeCapture() async {
+    try {
+      final file = await _controller!.takePicture();
+      final inputImage = InputImage.fromFilePath(file.path);
+
+      final quickDetector = FaceDetector(
+        options: FaceDetectorOptions(
+          enableClassification: true,
+          performanceMode: FaceDetectorMode.fast,
+          minFaceSize: 0.2,
+        ),
+      );
+
+      final faces = await quickDetector.processImage(inputImage);
+      await quickDetector.close();
+
+      if (faces.isEmpty) return true;
+
+      final face = faces.reduce(
+          (a, b) => a.boundingBox.width > b.boundingBox.width ? a : b);
+
+      final leftEye  = face.leftEyeOpenProbability  ?? 1.0;
+      final rightEye = face.rightEyeOpenProbability ?? 1.0;
+
+      return leftEye > 0.5 && rightEye > 0.5;
+    } catch (e) {
+      debugPrint('_checkEyesOpenBeforeCapture error: $e');
+      return true;
+    }
+  }
+
   Future<void> restartStream() async {
     if (!isInitialized) return;
     _clearWindows();
@@ -321,10 +409,12 @@ class CameraService {
   void _clearWindows() {
     _faceWindow.clear();
     _centeredWindow.clear();
+    _sizeWindow.clear();
     _lightingWindow.clear();
     _allGoodWindow.clear();
     _hysteresisFace     = false;
     _hysteresisCentered = false;
+    _hysteresisSize     = false;
     _hysteresisLighting = false;
   }
 
