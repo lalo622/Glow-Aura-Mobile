@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:glow_aura/core/theme/app_theme.dart';
 import 'package:glow_aura/shared/widgets/main_scaffold.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:glow_aura/features/auth/auth_viewmodel.dart';
 import 'dart:async';
 
 class HomeScreen extends StatelessWidget {
@@ -129,9 +131,11 @@ class HomeScreen extends StatelessWidget {
 }
 
 // ── Top bar ───────────────────────────────────────────────────────────────────
-class _TopBar extends StatelessWidget {
+class _TopBar extends ConsumerWidget {
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context,WidgetRef ref) {
+    final user = ref.watch(authViewModelProvider).user;
+    final firstName = user?.fullName.split(' ').last ?? '---';
     return Padding(
       padding: const EdgeInsets.symmetric(
           horizontal: AppColors.s16, vertical: AppColors.s12),
@@ -150,7 +154,7 @@ class _TopBar extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Xin chào, Tiến ',
+                Text('Xin chào, $firstName ',
                     style: AppTextStyles.title()),
                 Text('Hôm nay làn da của bạn thế nào?',
                     style: AppTextStyles.caption()),
