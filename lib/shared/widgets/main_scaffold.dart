@@ -16,7 +16,7 @@ class MainScaffold extends StatelessWidget {
     switch (index) {
       case 0: context.go('/home'); break;
       case 1: context.go('/history'); break;
-      case 2: context.go('/advice'); break;
+      case 2: context.go('/products'); break;
       case 3: context.go('/profile'); break;
     }
   }
