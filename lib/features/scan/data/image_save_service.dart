@@ -28,11 +28,9 @@ class ImageSaveService {
   // ── Save ───────────────────────────────────────────────────────────────────
 
   Future<SaveScanResult> saveScan(String tempImagePath) async {
-  
     final localPath = await _copyToDocuments(tempImagePath);
     debugPrint('[ImageSaveService] Copied to: $localPath');
 
-    
     try {
       await File(tempImagePath).delete();
       debugPrint('[ImageSaveService] Temp file deleted ✓');
@@ -40,6 +38,7 @@ class ImageSaveService {
       debugPrint('[ImageSaveService] Could not delete temp file: $e');
     }
 
+    bool savedToGallery = false;
     try {
       await Gal.putImage(localPath, album: 'Glow Aura');
       savedToGallery = true;
@@ -118,16 +117,15 @@ class ImageSaveService {
     }
   }
 
+
   Future<void> retryPendingUploads() async {
     final pending = await _db.getPendingScans();
     if (pending.isEmpty) return;
 
     debugPrint('[ImageSaveService] Retrying ${pending.length} pending scans');
     for (final scan in pending) {
-      // Kiểm tra file còn tồn tại không trước khi retry
       final fileExists = await File(scan.imagePath).exists();
       if (!fileExists) {
-        // File đã bị xóa — đánh dấu failed để không retry mãi
         await _db.updateSyncStatus(scan.id, ScanSyncStatus.failed,
             error: 'File ảnh không còn tồn tại');
         continue;
@@ -138,7 +136,6 @@ class ImageSaveService {
   }
 }
 
-// ── Riverpod provider ─────────────────────────────────────────────────────────
 
 final imageSaveServiceProvider = Provider<ImageSaveService>((ref) {
   return ImageSaveService(ref.watch(scanDatabaseProvider));

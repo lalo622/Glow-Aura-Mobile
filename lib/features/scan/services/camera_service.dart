@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:typed_data';
 import 'package:camera/camera.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -78,10 +77,10 @@ class CameraService {
   static const _windowSize        = 12;
   static const _faceRiseThreshold = 8;
   static const _faceFallThreshold = 4;
-  static const _captureThreshold  = 10;
+  static const _captureThreshold  = 9;
 
   // ── Face size validation ───────────────────────────────────────────────────
-  static const _minFaceSizeRatio = 0.38;
+  static const _minFaceSizeRatio = 0.28;
 
   final List<bool> _faceWindow      = [];
   final List<bool> _centeredWindow  = [];
@@ -192,7 +191,8 @@ class CameraService {
       raw.isFaceDetected &&
           raw.isFaceCentered &&
           raw.isFaceLargeEnough &&
-          raw.isLightingGood,
+          raw.isLightingGood &&
+          raw.isEyesOpen,
     );
 
     _hysteresisFace     = _applyHysteresis(_faceWindow,     _hysteresisFace);
@@ -243,7 +243,8 @@ class CameraService {
     required double luminance,
   }) {
     final isLightGood = luminance > 60 && luminance < 220;
-
+    final visualWidth  = imageHeight; 
+    final visualHeight = imageWidth;
     if (faces.isEmpty) {
       return FaceDetectionResult(
         isFaceDetected: false,
@@ -262,8 +263,8 @@ class CameraService {
     final faceCenterY = face.boundingBox.center.dy;
 
     final isCentered =
-        (faceCenterX - imageWidth  / 2).abs() < imageWidth  * 0.30 &&
-        (faceCenterY - imageHeight / 2).abs() < imageHeight * 0.30;
+      (faceCenterX - visualWidth  / 2).abs() < visualWidth  * 0.30 &&
+      (faceCenterY - visualHeight / 2).abs() < visualHeight * 0.30;
 
     final faceWidthRatio = face.boundingBox.width / imageWidth;
     final isFaceLargeEnough = faceWidthRatio >= _minFaceSizeRatio;
@@ -284,22 +285,37 @@ class CameraService {
 
   // ── Image conversion ───────────────────────────────────────────────────────
   InputImage? _convertToInputImage(CameraImage image) {
-    if (_controller == null) return null;
-    try {
-      return InputImage.fromBytes(
-        bytes: _yuv420ToNv21(image),
-        metadata: InputImageMetadata(
-          size: Size(image.width.toDouble(), image.height.toDouble()),
-          rotation: InputImageRotation.rotation90deg,
-          format: InputImageFormat.nv21,
-          bytesPerRow: image.width,
-        ),
-      );
-    } catch (e) {
-      debugPrint('_convertToInputImage error: $e');
-      return null;
-    }
+  if (_controller == null) return null;
+  try {
+    final sensorOrientation =
+        _controller!.description.sensorOrientation; 
+
+    final rotation = _sensorOrientationToInputRotation(sensorOrientation);
+
+    return InputImage.fromBytes(
+      bytes: _yuv420ToNv21(image),
+      metadata: InputImageMetadata(
+        size: Size(image.width.toDouble(), image.height.toDouble()),
+        rotation: rotation,              
+        format: InputImageFormat.nv21,
+        bytesPerRow: image.width,
+      ),
+    );
+  } catch (e) {
+    debugPrint('_convertToInputImage error: $e');
+    return null;
   }
+}
+
+InputImageRotation _sensorOrientationToInputRotation(int sensorOrientation) {
+  switch (sensorOrientation) {
+    case 0:   return InputImageRotation.rotation0deg;
+    case 90:  return InputImageRotation.rotation90deg;
+    case 180: return InputImageRotation.rotation180deg;
+    case 270: return InputImageRotation.rotation270deg;
+    default:  return InputImageRotation.rotation90deg;
+  }
+}
 
   Uint8List _yuv420ToNv21(CameraImage image) {
     final yPlane = image.planes[0];
@@ -347,64 +363,69 @@ class CameraService {
 
   // ── Capture ────────────────────────────────────────────────────────────────
   Future<XFile?> takePicture() async {
-    if (!isInitialized) return null;
-    try {
-      await _controller!.stopImageStream();
-
-      final isEyesOpen = await _checkEyesOpenBeforeCapture();
-      if (!isEyesOpen) {
-        debugPrint('takePicture: eyes closed, aborting capture');
-        return null;
-      }
-
-      final file = await _controller!.takePicture();
-      return file;
-    } catch (e) {
-      debugPrint('takePicture error: $e');
-      return null;
-    }
+  if (!isInitialized) return null;
+  try {
+    await _controller!.stopImageStream();
+    final file = await _controller!.takePicture();
+    final isValid = await _validateCapturedImage(file);
+    if (!isValid) return null;
+    return file;
+  } catch (e) {
+    debugPrint('takePicture error: $e');
+    return null;
   }
+}
+  Future<bool> _validateCapturedImage(XFile file) async {
+  try {
+    final inputImage = InputImage.fromFilePath(file.path);
 
-  Future<bool> _checkEyesOpenBeforeCapture() async {
-    try {
-      final file = await _controller!.takePicture();
-      final inputImage = InputImage.fromFilePath(file.path);
+    final quickDetector = FaceDetector(
+      options: FaceDetectorOptions(
+        enableClassification: true,
+        performanceMode: FaceDetectorMode.fast,
+        minFaceSize: 0.2,
+      ),
+    );
 
-      final quickDetector = FaceDetector(
-        options: FaceDetectorOptions(
-          enableClassification: true,
-          performanceMode: FaceDetectorMode.fast,
-          minFaceSize: 0.2,
-        ),
-      );
+    final faces = await quickDetector.processImage(inputImage);
+    await quickDetector.close();
 
-      final faces = await quickDetector.processImage(inputImage);
-      await quickDetector.close();
-
-      if (faces.isEmpty) return true;
-
-      final face = faces.reduce(
-          (a, b) => a.boundingBox.width > b.boundingBox.width ? a : b);
-
-      final leftEye  = face.leftEyeOpenProbability  ?? 1.0;
-      final rightEye = face.rightEyeOpenProbability ?? 1.0;
-
-      return leftEye > 0.5 && rightEye > 0.5;
-    } catch (e) {
-      debugPrint('_checkEyesOpenBeforeCapture error: $e');
-      return true;
+    if (faces.isEmpty) {
+      debugPrint('_validateCapturedImage: no face detected, allowing');
+      return true; 
     }
+
+    final face = faces.reduce(
+        (a, b) => a.boundingBox.width > b.boundingBox.width ? a : b);
+
+    final left  = face.leftEyeOpenProbability  ?? 1.0;
+    final right = face.rightEyeOpenProbability ?? 1.0;
+
+    debugPrint(
+        '_validateCapturedImage: left=$left right=$right');
+    return left > 0.5 && right > 0.5;
+  } catch (e) {
+    debugPrint('_validateCapturedImage error: $e');
+    return true; 
   }
+}
+
+ 
 
   Future<void> restartStream() async {
-    if (!isInitialized) return;
-    _clearWindows();
+  if (!isInitialized) return;
+  _clearWindows();
+  try {
     try {
-      await _controller!.startImageStream(_processFrame);
-    } catch (e) {
-      debugPrint('restartStream error: $e');
+      await _controller!.stopImageStream();
+    } catch (_) {
+      
     }
+    await _controller!.startImageStream(_processFrame);
+  } catch (e) {
+    debugPrint('restartStream error: $e');
   }
+}
 
   void _clearWindows() {
     _faceWindow.clear();

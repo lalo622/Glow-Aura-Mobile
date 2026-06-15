@@ -8,7 +8,7 @@ import 'package:go_router/go_router.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:glow_aura/core/theme/app_theme.dart';
 
-import 'camera_service.dart';
+import 'services/camera_service.dart';
 import 'data/scan_database.dart';
 import 'data/image_save_service.dart';
 
@@ -29,7 +29,7 @@ class _ScanScreenState extends ConsumerState<ScanScreen>
   bool    _isInitializing = true;
   String? _errorMessage;
   DateTime? _stableStartTime;
-  static const _requiredHoldMs = 2000;
+  static const _requiredHoldMs = 1500;
   late final AnimationController _progressController;
   double _progressTarget = 0.0;
   late final AnimationController _shutterController;
@@ -154,7 +154,7 @@ class _ScanScreenState extends ConsumerState<ScanScreen>
     HapticFeedback.mediumImpact();
     setState(() => _isCapturing = true);
 
-    await _shutterController.forward(from: 0.0);
+    _shutterController.forward(from: 0.0); 
 
     final file = await _cameraService.takePicture();
 
@@ -250,7 +250,7 @@ class _ScanScreenState extends ConsumerState<ScanScreen>
                             child: IgnorePointer(
                               child: Container(
                                 color: Colors.white
-                                    .withOpacity(_shutterOpacity.value),
+                                    .withValues(alpha:_shutterOpacity.value),
                               ),
                             ),
                           );
@@ -320,10 +320,16 @@ class _CameraBody extends StatelessWidget {
                 child: _StatusChip(
                   icon:  Icons.face_outlined,
                   label: 'Khuôn mặt',
-                  value: smoothedState.isFaceStable
-                      ? (smoothedState.isCenteredStable ? 'CHÍNH XÁC' : 'CĂN CHỈNH LẠI')
-                      : 'KHÔNG THẤY',
-                  valueColor: smoothedState.isFaceStable && smoothedState.isCenteredStable
+                  value: !smoothedState.isFaceStable
+                      ? 'KHÔNG THẤY'
+                      : !smoothedState.isCenteredStable
+                          ? 'CĂN CHỈNH LẠI'
+                          : !smoothedState.isFaceLargeEnough
+                              ? 'LẠI GẦN HƠN'
+                              : 'CHÍNH XÁC',
+                  valueColor: smoothedState.isFaceStable &&
+                              smoothedState.isCenteredStable &&
+                              smoothedState.isFaceLargeEnough
                       ? AppColors.primary
                       : Colors.orange,
                 ),
@@ -335,7 +341,10 @@ class _CameraBody extends StatelessWidget {
 
         _CameraControls(
           isCapturing:      isCapturing,
-          isReadyToCapture: smoothedState.isFaceStable && smoothedState.isCenteredStable,
+          isReadyToCapture: smoothedState.isFaceStable && 
+                            smoothedState.isCenteredStable&&
+                            smoothedState.isFaceLargeEnough &&
+                            smoothedState.isLightingStable,
           onCapture:        onCapture,
         ),
         const SizedBox(height: AppColors.s12),
@@ -395,7 +404,7 @@ class _CameraPreviewArea extends StatelessWidget {
                 radius: 0.85,
                 colors: [
                   Colors.transparent,
-                  Colors.black.withOpacity(0.45),
+                  Colors.black.withValues(alpha:0.45),
                 ],
               ),
             ),
@@ -417,7 +426,7 @@ class _CameraPreviewArea extends StatelessWidget {
                 return Transform.scale(
                   scale: scale,
                   child: CustomPaint(
-                    size: const Size(220, 290),
+                    size: const Size(260, 340),
                     painter: _ProgressRingPainter(
                       progress:  progress,
                       ringColor: ringColor,
@@ -474,7 +483,7 @@ class _ProgressRingPainter extends CustomPainter {
     final rect = Rect.fromLTWH(0, 0, size.width, size.height);
 
     final basePaint = Paint()
-      ..color       = baseColor.withOpacity(0.35)
+      ..color       = baseColor.withValues(alpha:0.35)
       ..strokeWidth = 2.0
       ..style       = PaintingStyle.stroke;
 
@@ -500,7 +509,7 @@ class _ProgressRingPainter extends CustomPainter {
 
     if (progress > 0.7) {
       final glowPaint = Paint()
-        ..color       = ringColor.withOpacity(0.3 * ((progress - 0.7) / 0.3))
+        ..color       = ringColor.withValues(alpha:0.3 * ((progress - 0.7) / 0.3))
         ..strokeWidth = 8.0
         ..style       = PaintingStyle.stroke
         ..maskFilter  = const MaskFilter.blur(BlurStyle.normal, 4);
@@ -558,26 +567,28 @@ class _ScanStatusBar extends StatelessWidget {
   const _ScanStatusBar({required this.smoothedState});
 
   String get _statusText {
-    if (!smoothedState.isFaceStable)     return 'Hướng camera về phía khuôn mặt';
-    if (!smoothedState.isCenteredStable) return 'Di chuyển để căn giữa khuôn mặt';
-    if (!smoothedState.isLightingStable) return 'Cần thêm ánh sáng';
-    if (smoothedState.captureProgress < 1.0) return 'Giữ yên, đang chuẩn bị chụp...';
-    return 'Đang chụp...';
-  }
+  if (!smoothedState.isFaceStable)      return 'Hướng camera về phía khuôn mặt';
+  if (!smoothedState.isCenteredStable)  return 'Di chuyển để căn giữa khuôn mặt';
+  if (!smoothedState.isFaceLargeEnough) return 'Đưa khuôn mặt lại gần hơn';
+  if (!smoothedState.isLightingStable)  return 'Cần thêm ánh sáng';
+  if (smoothedState.captureProgress < 0.83) return 'Giữ yên, đang chuẩn bị chụp...';
+  return 'Đang chụp...';
+}
 
   @override
   Widget build(BuildContext context) {
     final isReady = smoothedState.isFaceStable &&
         smoothedState.isCenteredStable &&
+        smoothedState.isFaceLargeEnough && 
         smoothedState.isLightingStable;
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: AppColors.s16),
       padding: const EdgeInsets.all(AppColors.s16),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.08),
+        color: Colors.white.withValues(alpha:0.08),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withOpacity(0.12)),
+        border: Border.all(color: Colors.white.withValues(alpha:0.12)),
       ),
       child: Column(
         children: [
@@ -663,7 +674,7 @@ class _CameraControls extends StatelessWidget {
               shape:  BoxShape.circle,
               boxShadow: isReadyToCapture
                   ? [BoxShadow(
-                      color: AppColors.primary.withOpacity(0.5),
+                      color: AppColors.primary.withValues(alpha:0.5),
                       blurRadius: 20, spreadRadius: 4)]
                   : [],
             ),
@@ -696,7 +707,7 @@ class _CircleButton extends StatelessWidget {
         width:  48,
         height: 48,
         decoration: BoxDecoration(
-          color:  Colors.white.withOpacity(0.12),
+          color:  Colors.white.withValues(alpha:0.12),
           shape:  BoxShape.circle,
           border: Border.all(color: Colors.white24),
         ),
@@ -714,7 +725,7 @@ class _DetectedBadge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
-        color: AppColors.primary.withOpacity(0.85),
+        color: AppColors.primary.withValues(alpha:0.85),
         borderRadius: BorderRadius.circular(20),
       ),
       child: Row(
@@ -790,9 +801,9 @@ class _StatusChip extends StatelessWidget {
       padding: const EdgeInsets.symmetric(
           horizontal: AppColors.s12, vertical: AppColors.s8),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.08),
+        color: Colors.white.withValues(alpha:0.08),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withOpacity(0.12)),
+        border: Border.all(color: Colors.white.withValues(alpha:0.12)),
       ),
       child: Row(
         children: [
@@ -864,9 +875,9 @@ class _ErrorView extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 12),
-            TextButton(
+            const TextButton(
               onPressed: openAppSettings,
-              child: const Text('Mở cài đặt quyền',
+              child: Text('Mở cài đặt quyền',
                   style: TextStyle(color: Colors.white54)),
             ),
           ],
