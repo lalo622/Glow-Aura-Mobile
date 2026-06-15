@@ -115,7 +115,7 @@ class _SplashScreenState extends State<SplashScreen>
                 width: 200, height: 200,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: Colors.white.withOpacity(0.06),
+                  color: Colors.white.withValues(alpha: 0.06),
                 ),
               ),
             ),
@@ -125,7 +125,7 @@ class _SplashScreenState extends State<SplashScreen>
                 width: 250, height: 250,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: Colors.white.withOpacity(0.04),
+                  color: Colors.white.withValues(alpha: 0.04),
                 ),
               ),
             ),
@@ -135,7 +135,7 @@ class _SplashScreenState extends State<SplashScreen>
                 width: 120, height: 120,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: Colors.white.withOpacity(0.05),
+                  color: Colors.white.withValues(alpha: 0.05),
                 ),
               ),
             ),
@@ -194,7 +194,7 @@ class _SplashScreenState extends State<SplashScreen>
                           style: GoogleFonts.manrope(
                             fontSize: 14,
                             fontWeight: FontWeight.w300,
-                            color: Colors.white.withOpacity(0.75),
+                            color: Colors.white.withValues(alpha: 0.75),
                             letterSpacing: 3,
                           ),
                         ),
@@ -218,7 +218,7 @@ class _SplashScreenState extends State<SplashScreen>
                       SizedBox(
                         width: 120,
                         child: LinearProgressIndicator(
-                          backgroundColor: Colors.white.withOpacity(0.2),
+                          backgroundColor: Colors.white.withValues(alpha: 0.2),
                           valueColor: const AlwaysStoppedAnimation<Color>(
                               Colors.white),
                           minHeight: 2,
@@ -229,7 +229,7 @@ class _SplashScreenState extends State<SplashScreen>
                         'Đang khởi động...',
                         style: GoogleFonts.manrope(
                           fontSize: 12,
-                          color: Colors.white.withOpacity(0.5),
+                          color: Colors.white.withValues(alpha: 0.5),
                           letterSpacing: 1,
                         ),
                       ),
@@ -252,15 +252,15 @@ class _LogoWidget extends StatelessWidget {
     return Container(
       width: 100, height: 100,
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.15),
+        color: Colors.white.withValues(alpha: 0.15),
         borderRadius: BorderRadius.circular(28),
         border: Border.all(
-          color: Colors.white.withOpacity(0.3),
+          color: Colors.white.withValues(alpha: 0.3),
           width: 1.5,
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.15),
+            color: Colors.black.withValues(alpha: 0.15),
             blurRadius: 24,
             spreadRadius: 4,
             offset: const Offset(0, 8),

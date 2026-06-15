@@ -827,7 +827,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   // ── Bottom Bar ──
   Widget _buildBottomBar() {
     return Container(
-      decoration: BoxDecoration(
+      decoration:const BoxDecoration(
         color: AppColors.surface,
         border: Border(top: BorderSide(color: AppColors.border, width: 0.5)),
       ),
@@ -845,12 +845,12 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                 child: CircularProgressIndicator(
                     color: Colors.white, strokeWidth: 2.5),
               )
-            : Row(
+            : const Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Text('Hoàn tất đặt hàng'),
-                  const SizedBox(width: 8),
-                  const Icon(Icons.arrow_forward_rounded, size: 18),
+                   Text('Hoàn tất đặt hàng'),
+                   SizedBox(width: 8),
+                   Icon(Icons.arrow_forward_rounded, size: 18),
                 ],
               ),
       ),

@@ -144,7 +144,7 @@ class _HeaderCard extends StatelessWidget {
 class _StatsRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    return Row(
+    return const Row(
       children: [
         Expanded(
           child: _StatCard(
@@ -156,7 +156,7 @@ class _StatsRow extends StatelessWidget {
             deltaPositive: true,
           ),
         ),
-        const SizedBox(width: AppColors.s12),
+         SizedBox(width: AppColors.s12),
         Expanded(
           child: _StatCard(
             icon: Icons.grain_outlined,
@@ -242,7 +242,7 @@ class _FaceMapComingSoon extends StatelessWidget {
             children: [
               Container(
                 width: 56, height: 56,
-                decoration: BoxDecoration(
+                decoration:const BoxDecoration(
                   color: AppColors.primaryTint,
                   shape: BoxShape.circle,
                 ),

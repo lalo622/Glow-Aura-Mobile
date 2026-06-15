@@ -41,7 +41,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   ),
                   Container(
                     width: 36, height: 36,
-                    decoration: BoxDecoration(
+                    decoration:const BoxDecoration(
                       color: AppColors.primaryTint,
                       shape: BoxShape.circle,
                     ),
@@ -63,7 +63,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     const SizedBox(height: AppColors.s8),
 
                     // ── Tài khoản & Bảo mật ───────────────────────────────
-                    _SectionLabel('TÀI KHOẢN & BẢO MẬT'),
+                    const _SectionLabel('TÀI KHOẢN & BẢO MẬT'),
                     const SizedBox(height: AppColors.s8),
                     _MenuCard(
                       items: [
@@ -93,7 +93,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                             value: isDark,
                             onChanged: (_) =>
                                 ref.read(themeProvider.notifier).toggle(),
-                            activeColor: AppColors.primary,
+                            activeThumbColor: AppColors.primary,
                           ),
                         ),
                       ],
@@ -101,7 +101,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     const SizedBox(height: AppColors.s24),
 
                     // ── Tuỳ chọn ─────────────────────────────────────────
-                    _SectionLabel('TUỲ CHỌN'),
+                    const _SectionLabel('TUỲ CHỌN'),
                     const SizedBox(height: AppColors.s8),
                     _MenuCard(
                       items: [

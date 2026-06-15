@@ -30,7 +30,7 @@ class ScanGuideStep1Screen extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    StepIndicator(step: 1, total: 4, label: 'Bước 1: Chuẩn bị'),
+                    const StepIndicator(step: 1, total: 4, label: 'Bước 1: Chuẩn bị'),
                     const SizedBox(height: AppColors.s24),
                     Text('Căn chỉnh khuôn mặt', style: AppTextStyles.display()),
                     const SizedBox(height: AppColors.s8),
@@ -41,12 +41,12 @@ class ScanGuideStep1Screen extends StatelessWidget {
                     const SizedBox(height: AppColors.s24),
                     _FaceFramePreview(),
                     const SizedBox(height: AppColors.s24),
-                    _InstructionItem(
+                    const _InstructionItem(
                       number: '1',
                       text: 'Giữ điện thoại ngang tầm mắt, cách mặt khoảng 30–40cm.',
                     ),
                     const SizedBox(height: AppColors.s12),
-                    _InstructionItem(
+                    const _InstructionItem(
                       number: '2',
                       text: 'Giữ biểu cảm tự nhiên, không đeo kính hoặc phụ kiện che mặt.',
                     ),
@@ -111,7 +111,7 @@ class _FaceFramePreview extends StatelessWidget {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
               decoration: BoxDecoration(
-                color: AppColors.primary.withOpacity(0.85),
+                color: AppColors.primary.withValues(alpha: 0.85),
                 borderRadius: BorderRadius.circular(20),
               ),
               child: Text('KHUNG QUÉT',
@@ -128,7 +128,7 @@ class _FaceFramePreview extends StatelessWidget {
               padding: const EdgeInsets.symmetric(
                   horizontal: AppColors.s16, vertical: AppColors.s12),
               decoration: BoxDecoration(
-                color: AppColors.surface.withOpacity(0.93),
+                color: AppColors.surface.withValues(alpha: 0.93),
                 borderRadius: const BorderRadius.only(
                   bottomLeft: Radius.circular(16),
                   bottomRight: Radius.circular(16),

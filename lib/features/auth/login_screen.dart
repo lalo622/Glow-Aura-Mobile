@@ -58,7 +58,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   const SizedBox(height: 16),
                 ],
 
-                _Label('Email'),
+                const _Label('Email'),
                 const SizedBox(height: 6),
                 TextFormField(
                   controller: _emailCtrl,
@@ -68,7 +68,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 ),
                 const SizedBox(height: 16),
 
-                _Label('Mật khẩu'),
+                const _Label('Mật khẩu'),
                 const SizedBox(height: 6),
                 PasswordField(
                   controller: _passCtrl,
@@ -142,9 +142,9 @@ class _ErrorBanner extends StatelessWidget {
     width: double.infinity,
     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
     decoration: BoxDecoration(
-      color: AppColors.error.withOpacity(0.08),
+      color: AppColors.error.withValues(alpha: 0.08),
       borderRadius: BorderRadius.circular(10),
-      border: Border.all(color: AppColors.error.withOpacity(0.3)),
+      border: Border.all(color: AppColors.error.withValues(alpha: 0.3)),
     ),
     child: Text(message, style: GoogleFonts.dmSans(fontSize: 13, color: AppColors.error)),
   );

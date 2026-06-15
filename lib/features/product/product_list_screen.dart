@@ -563,7 +563,7 @@ class _PlaceholderImage extends StatelessWidget {
     return Container(
       width: double.infinity,
       color: AppColors.primarySubtle,
-      child: Center(
+      child: const Center(
         child: Icon(Icons.inventory_2_outlined,
             size: 52, color: AppColors.primaryTint),
       ),
@@ -649,9 +649,9 @@ class _SkeletonCard extends StatelessWidget {
           Expanded(
             flex: 5,
             child: Container(
-              decoration: BoxDecoration(
+              decoration: const BoxDecoration(
                 color: AppColors.border,
-                borderRadius: const BorderRadius.only(
+                borderRadius: BorderRadius.only(
                   topLeft: Radius.circular(12),
                   topRight: Radius.circular(12),
                 ),
@@ -699,9 +699,9 @@ class _ErrorBanner extends StatelessWidget {
       padding: const EdgeInsets.symmetric(
           horizontal: AppColors.s12, vertical: AppColors.s8),
       decoration: BoxDecoration(
-        color: AppColors.error.withOpacity(0.1),
+        color: AppColors.error.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: AppColors.error.withOpacity(0.3)),
+        border: Border.all(color: AppColors.error.withValues(alpha: 0.3)),
       ),
       child: Row(
         children: [

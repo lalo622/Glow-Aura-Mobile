@@ -171,10 +171,10 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                             const SizedBox(height: AppColors.s24),
 
                             // ── Thông tin cơ bản ─────────────────────────
-                            _SectionLabel('THÔNG TIN CƠ BẢN'),
+                            const _SectionLabel('THÔNG TIN CƠ BẢN'),
                             const SizedBox(height: AppColors.s12),
 
-                            _FieldLabel('Họ và tên'),
+                            const _FieldLabel('Họ và tên'),
                             const SizedBox(height: AppColors.s8),
                             TextFormField(
                               controller: _nameCtrl,
@@ -190,7 +190,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                             const SizedBox(height: AppColors.s16),
 
                             // Email 
-                            _FieldLabel('Email'),
+                            const _FieldLabel('Email'),
                             const SizedBox(height: AppColors.s8),
                             Container(
                               padding: const EdgeInsets.symmetric(
@@ -216,7 +216,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                             ),
                             const SizedBox(height: AppColors.s16),
 
-                            _FieldLabel('Tuổi'),
+                            const _FieldLabel('Tuổi'),
                             const SizedBox(height: AppColors.s8),
                             TextFormField(
                               controller: _ageCtrl,
@@ -230,10 +230,10 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                             const SizedBox(height: AppColors.s24),
 
                             // ── Thông tin da ─────────────────────────────
-                            _SectionLabel('THÔNG TIN DA'),
+                            const _SectionLabel('THÔNG TIN DA'),
                             const SizedBox(height: AppColors.s12),
 
-                            _FieldLabel('Loại da'),
+                            const _FieldLabel('Loại da'),
                             const SizedBox(height: AppColors.s8),
                             Container(
                               decoration: BoxDecoration(
@@ -268,7 +268,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                             const SizedBox(height: AppColors.s24),
 
                             // ── Skin concerns ─────────────────────────────
-                            _SectionLabel('VẤN ĐỀ DA QUAN TÂM'),
+                            const _SectionLabel('VẤN ĐỀ DA QUAN TÂM'),
                             const SizedBox(height: AppColors.s12),
                             _SkinConcernChips(),
                             const SizedBox(height: AppColors.s32),

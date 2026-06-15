@@ -232,7 +232,7 @@ class _CartScreenState extends State<CartScreen> {
           children: [
             Container(
               width: 96, height: 96,
-              decoration: BoxDecoration(
+              decoration: const BoxDecoration(
                 color: AppColors.primarySubtle,
                 shape: BoxShape.circle,
               ),
@@ -644,7 +644,7 @@ class _CartScreenState extends State<CartScreen> {
   // ── Bottom Bar ──
   Widget _buildBottomBar() {
     return Container(
-      decoration: BoxDecoration(
+      decoration:const BoxDecoration(
         color: AppColors.surface,
         border: Border(
           top: BorderSide(color: AppColors.border, width: 0.5),

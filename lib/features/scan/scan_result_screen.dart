@@ -22,7 +22,7 @@ class ScanResultScreen extends StatefulWidget {
 
 class _ScanResultScreenState extends State<ScanResultScreen> {
   ScanRecord? _scanRecord;
-  bool _isLoadingResult = false;
+  final bool _isLoadingResult = false;
 
   // ── Hardcode data — TODO: replace bằng _scanRecord.metricsJson  ──
   static const _metrics = [
@@ -233,9 +233,9 @@ class _SyncStatusChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
-        color:        Colors.orange.withOpacity(0.1),
+        color:        Colors.orange.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(20),
-        border:       Border.all(color: Colors.orange.withOpacity(0.3)),
+        border:       Border.all(color: Colors.orange.withValues(alpha: 0.3)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -347,8 +347,8 @@ class _MetricCard extends StatelessWidget {
                 horizontal: AppColors.s8, vertical: 4),
             decoration: BoxDecoration(
               color: data.deltaPositive
-                  ? AppColors.success.withOpacity(0.1)
-                  : AppColors.error.withOpacity(0.1),
+                  ? AppColors.success.withValues(alpha: 0.1)
+                  : AppColors.error.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(20),
             ),
             child: Row(

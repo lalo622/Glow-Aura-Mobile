@@ -38,7 +38,7 @@ class ScanGuideStep2Screen extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    StepIndicator(step: 2, total: 4, label: 'Bước 2: Ánh sáng'),
+                    const StepIndicator(step: 2, total: 4, label: 'Bước 2: Ánh sáng'),
                     const SizedBox(height: AppColors.s24),
                     Text('Đảm bảo ánh sáng', style: AppTextStyles.display()),
                     const SizedBox(height: AppColors.s8),
@@ -51,13 +51,13 @@ class ScanGuideStep2Screen extends StatelessWidget {
                     const SizedBox(height: AppColors.s24),
                     Text('Mẹo nhỏ cho bạn', style: AppTextStyles.heading()),
                     const SizedBox(height: AppColors.s12),
-                    _TipCard(
+                    const _TipCard(
                       icon: Icons.face_retouching_natural,
                       title: 'Làm sạch khuôn mặt',
                       desc: 'Giữ khuôn mặt tươi tắn và lau sạch ống kính camera.',
                     ),
                     const SizedBox(height: AppColors.s12),
-                    _TipCard(
+                    const _TipCard(
                       icon: Icons.camera_outlined,
                       title: 'Giữ yên máy',
                       desc: 'Tránh rung lắc camera trong quá trình phân tích hào quang.',
@@ -82,18 +82,18 @@ class ScanGuideStep2Screen extends StatelessWidget {
 class _LightingExamples extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    return Row(
+    return const Row(
       children: [
         Expanded(
           child: _LightingCard(
             icon: Icons.wb_sunny_outlined,
             iconColor: AppColors.accentGold,
-            bgColor: const Color(0xFFD8EAF5),
+            bgColor:  Color(0xFFD8EAF5),
             label: 'Ánh sáng tự nhiên',
             sublabel: 'Tránh ngược sáng',
           ),
         ),
-        const SizedBox(width: AppColors.s8),
+        SizedBox(width: AppColors.s8),
         Expanded(
           child: _LightingCard(
             icon: Icons.camera_front_outlined,

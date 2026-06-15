@@ -338,7 +338,7 @@ class _BannerItem extends StatelessWidget {
                   end: Alignment.centerLeft,
                   colors: [
                     Colors.transparent,
-                    Colors.black.withOpacity(0.55),
+                    Colors.black.withValues(alpha: 0.55),
                   ],
                 ),
               ),
@@ -799,14 +799,14 @@ class _HealthScoreCard extends StatelessWidget {
               child: Stack(
                 alignment: Alignment.center,
                 children: [
-                  SizedBox(
+                  const SizedBox(
                     width: 72,
                     height: 72,
                     child: CircularProgressIndicator(
                       value: 0.85,
                       strokeWidth: 6,
                       backgroundColor: AppColors.primaryTint,
-                      valueColor: const AlwaysStoppedAnimation<Color>(
+                      valueColor:  AlwaysStoppedAnimation<Color>(
                           AppColors.primary),
                       strokeCap: StrokeCap.round,
                     ),

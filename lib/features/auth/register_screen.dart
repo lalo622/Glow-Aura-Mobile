@@ -93,7 +93,7 @@
                       width: double.infinity,
                       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                       decoration: BoxDecoration(
-                        color: AppColors.error.withOpacity(0.08),
+                        color: AppColors.error.withValues(alpha: 0.08),
                         borderRadius: BorderRadius.circular(10),
                       ),
                       child: Text(state.errorMessage!, style: GoogleFonts.dmSans(
@@ -102,7 +102,7 @@
                     const SizedBox(height: 16),
                   ],
 
-                  _FieldLabel('Họ và tên'),
+                  const _FieldLabel('Họ và tên'),
                   const SizedBox(height: 6),
                   TextFormField(
                     controller: _nameCtrl,
@@ -114,7 +114,7 @@
                   ),
                   const SizedBox(height: 14),
 
-                  _FieldLabel('Email'),
+                  const _FieldLabel('Email'),
                   const SizedBox(height: 6),
                   TextFormField(
                     controller: _emailCtrl,
@@ -127,7 +127,7 @@
                   ),
                   const SizedBox(height: 14),
 
-                  _FieldLabel('Mật khẩu'),
+                  const _FieldLabel('Mật khẩu'),
                   const SizedBox(height: 6),
                   PasswordField(
                     controller: _passCtrl,
@@ -136,7 +136,7 @@
                   ),
                   const SizedBox(height: 14),
 
-                  _FieldLabel('Xác nhận mật khẩu'),
+                  const _FieldLabel('Xác nhận mật khẩu'),
                   const SizedBox(height: 6),
                   PasswordField(
                     controller: _confirmCtrl,

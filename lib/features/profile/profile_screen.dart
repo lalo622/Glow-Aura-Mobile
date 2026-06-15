@@ -19,7 +19,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   @override
   void initState() {
     super.initState();
-    // Load profile từ BE khi vào màn hình
     Future.microtask(() =>
         ref.read(profileViewModelProvider.notifier).loadProfile());
   }
@@ -29,8 +28,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     final profileState = ref.watch(profileViewModelProvider);
     final authState = ref.watch(authViewModelProvider);
 
-    // Ưu tiên dùng data từ profileViewModel (đầy đủ hơn),
-    // fallback về authViewModel nếu chưa load xong
     final fullName = profileState.profile?.fullName ??
         authState.user?.fullName ?? '---';
     final email = profileState.profile?.email ??
@@ -103,7 +100,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                           const SizedBox(height: AppColors.s24),
 
                           // ── Section: Thông tin cá nhân ─────────────────
-                          _SectionLabel('THÔNG TIN CÁ NHÂN'),
+                          const _SectionLabel('THÔNG TIN CÁ NHÂN'),
                           const SizedBox(height: AppColors.s8),
                           _MenuCard(items: [
                             _MenuItem(
@@ -124,7 +121,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                           const SizedBox(height: AppColors.s24),
 
                           // ── Section: Chu trình chăm sóc da ────────────
-                          _SectionLabel('CHU TRÌNH CHĂM SÓC DA'),
+                          const _SectionLabel('CHU TRÌNH CHĂM SÓC DA'),
                           const SizedBox(height: AppColors.s8),
                           _MenuCard(items: [
                             _MenuItem(
@@ -159,7 +156,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                           const SizedBox(height: AppColors.s24),
 
                           // ── Section: Premium & Hỗ trợ ─────────────────
-                          _SectionLabel('PREMIUM & HỖ TRỢ'),
+                          const _SectionLabel('PREMIUM & HỖ TRỢ'),
                           const SizedBox(height: AppColors.s8),
                           _MenuCard(items: [
                             _MenuItem(
@@ -251,7 +248,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           TextButton(
             onPressed: () async {
               Navigator.pop(context);
-              // Gọi logout thật — xóa token + revoke BE
               await ref
                   .read(authViewModelProvider.notifier)
                   .logout();

@@ -141,7 +141,7 @@ class _HistoryScreenState extends State<HistoryScreen>
             Expanded(
               child: TabBarView(
                 controller: _tabController,
-                children: [
+                children: const [
                   _AllTab(
                     todayItems: _todayItems,
                     oct2023Items: _oct2023Items,
@@ -195,11 +195,11 @@ class _AllTab extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: AppColors.s12),
-              Expanded(
+              const Expanded(
                 child: _StatCard(
                   label: 'LẦN QUÉT CUỐI',
                   value: 'Hôm nay',
-                  trailing: const Icon(Icons.check_circle,
+                  trailing: Icon(Icons.check_circle,
                       size: 16, color: AppColors.success),
                 ),
               ),
@@ -208,7 +208,7 @@ class _AllTab extends StatelessWidget {
           const SizedBox(height: AppColors.s24),
 
           // ── Today ─────────────────────────────────────────────────────
-          _GroupLabel('HÔM NAY'),
+          const _GroupLabel('HÔM NAY'),
           const SizedBox(height: AppColors.s8),
           ...todayItems.map((item) => Padding(
                 padding: const EdgeInsets.only(bottom: AppColors.s8),
@@ -217,7 +217,7 @@ class _AllTab extends StatelessWidget {
           const SizedBox(height: AppColors.s16),
 
           // ── October 2023 ──────────────────────────────────────────────
-          _GroupLabel('THÁNG 10, 2023'),
+          const _GroupLabel('THÁNG 10, 2023'),
           const SizedBox(height: AppColors.s8),
           ...oct2023Items.map((item) => Padding(
                 padding: const EdgeInsets.only(bottom: AppColors.s8),

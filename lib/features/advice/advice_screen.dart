@@ -110,7 +110,7 @@ class AdviceScreen extends StatelessWidget {
                             ],
                           ),
                           const SizedBox(height: AppColors.s12),
-                          _ProductsRow(products: _products),
+                          const _ProductsRow(products: _products),
                           const SizedBox(height: AppColors.s24),
                         ],
                       ),
@@ -170,7 +170,7 @@ class _ResultSummaryCard extends StatelessWidget {
               ),
               Container(
                 width: 56, height: 56,
-                decoration: BoxDecoration(
+                decoration: const BoxDecoration(
                   color: AppColors.primary,
                   shape: BoxShape.circle,
                 ),
@@ -215,9 +215,9 @@ class _ExpertAdviceCard extends StatelessWidget {
           // Image placeholder
           Container(
             height: 160,
-            decoration: BoxDecoration(
+            decoration: const BoxDecoration(
               color: AppColors.primaryTint,
-              borderRadius: const BorderRadius.only(
+              borderRadius: BorderRadius.only(
                 topLeft: Radius.circular(16),
                 topRight: Radius.circular(16),
               ),
@@ -251,9 +251,9 @@ class _ExpertAdviceCard extends StatelessWidget {
                 const SizedBox(height: AppColors.s12),
                 Row(
                   children: [
-                    _TagChip(label: 'VIT C'),
+                    const _TagChip(label: 'VIT C'),
                     const SizedBox(width: AppColors.s8),
-                    _TagChip(label: 'B5'),
+                    const _TagChip(label: 'B5'),
                     const Spacer(),
                     SizedBox(
                       height: 36,
