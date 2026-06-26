@@ -73,4 +73,12 @@ class ApiEndpoints {
   static String userById(String id) => '/api/User/$id';
   static String userRole(String id) => '/api/User/$id/role';
   static String userStatus(String id) => '/api/User/$id/status';
+
+  // ─── Skin Analysis ────────────────────────────────────────────────────
+  static const String skinAnalysisAnalyze = '/api/skin-analysis/analyze';
+  static const String skinAnalysisHistory = '/api/skin-analysis/history';
+  static String skinAnalysisDetail(String analysisCode) =>
+      '/api/skin-analysis/$analysisCode';
+ 
+
 }

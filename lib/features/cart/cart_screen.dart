@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../core/theme/app_theme.dart';
-
+import 'package:go_router/go_router.dart';
 class CartItemModel {
   final String id;
   final String brand;
@@ -200,27 +200,33 @@ class _CartScreenState extends State<CartScreen> {
   }
 
   AppBar _buildAppBar() {
-    return AppBar(
-      backgroundColor: AppColors.surface,
-      elevation: 0,
-      centerTitle: true,
-      leading: IconButton(
-        icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
-        color: AppColors.textPrimary,
-        onPressed: () => Navigator.pop(context),
-      ),
-      title: Column(
-        children: [
-          Text('Giỏ hàng', style: AppTextStyles.title()),
-          if (_items.isNotEmpty)
-            Text(
-              '$_totalQuantity sản phẩm',
-              style: AppTextStyles.caption(),
-            ),
-        ],
-      ),
-    );
-  }
+  return AppBar(
+    backgroundColor: AppColors.surface,
+    elevation: 0,
+    centerTitle: true,
+    leading: IconButton(
+      icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
+      color: AppColors.textPrimary,
+      onPressed: () {
+        if (context.canPop()) {
+          context.pop();
+        } else {
+          context.go('/home');
+        }
+      },
+    ),
+    title: Column(
+      children: [
+        Text('Giỏ hàng', style: AppTextStyles.title()),
+        if (_items.isNotEmpty)
+          Text(
+            '$_totalQuantity sản phẩm',
+            style: AppTextStyles.caption(),
+          ),
+      ],
+    ),
+  );
+}
 
   // ── Giỏ trống ──
   Widget _buildEmptyCart() {

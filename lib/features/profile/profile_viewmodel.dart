@@ -1,4 +1,3 @@
-import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'models/user_profile_model.dart';
 import 'services/user_service.dart';
@@ -40,43 +39,33 @@ class ProfileViewModel extends StateNotifier<ProfileState> {
 
   Future<void> loadProfile() async {
     state = state.copyWith(isLoading: true, clearError: true);
-    try {
-      final profile = await _userService.getMyProfile();
-      state = state.copyWith(isLoading: false, profile: profile);
-    } on DioException catch (e) {
-      state = state.copyWith(
-        isLoading: false,
-        errorMessage: _parseError(e),
-      );
+
+    final result = await _userService.getMyProfile();
+
+    if (result.error != null) {
+      state = state.copyWith(isLoading: false, errorMessage: result.error!.message);
+      return;
     }
+
+    state = state.copyWith(isLoading: false, profile: result.data);
   }
 
   Future<bool> updateProfile(UpdateProfileRequest request) async {
     state = state.copyWith(isSaving: true, clearError: true);
-    try {
-      final updated = await _userService.updateMyProfile(request);
-      state = state.copyWith(isSaving: false, profile: updated);
-      return true;
-    } on DioException catch (e) {
-      state = state.copyWith(
-        isSaving: false,
-        errorMessage: _parseError(e),
-      );
+
+    final result = await _userService.updateMyProfile(request);
+
+    if (result.error != null) {
+      state = state.copyWith(isSaving: false, errorMessage: result.error!.message);
       return false;
     }
+
+    state = state.copyWith(isSaving: false, profile: result.data);
+    return true;
+
   }
 
-  String _parseError(DioException e) {
-    final message = e.response?.data?['message'];
-    if (message != null && message is String) return message;
-    return switch (e.response?.statusCode) {
-      400 => 'Thông tin không hợp lệ',
-      401 => 'Phiên đăng nhập hết hạn',
-      500 => 'Lỗi server, vui lòng thử lại',
-      null => 'Không thể kết nối server',
-      _ => 'Đã có lỗi xảy ra',
-    };
-  }
+  void clearError() => state = state.copyWith(clearError: true);
 }
 
 // ─── Providers ────────────────────────────────────────────────────────────────

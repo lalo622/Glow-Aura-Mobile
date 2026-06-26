@@ -1,4 +1,3 @@
-import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'models/product_model.dart';
 import 'services/product_service.dart';
@@ -78,38 +77,27 @@ class ProductViewModel extends StateNotifier<ProductState> {
 
   ProductViewModel(this._productService) : super(const ProductState());
 
-  // ─── Load lần đầu (products + categories) ─────────────────────────────────
   Future<void> init() async {
     state = state.copyWith(isLoading: true, clearError: true);
-    try {
-      await Future.wait([
-        _fetchProducts(reset: true),
-        _fetchCategories(),
-      ]);
-    } catch (e) {
-      state = state.copyWith(
-        isLoading: false,
-        errorMessage: _parseError(e),
-      );
-    }
+    await Future.wait([
+      _fetchProducts(reset: true),
+      _fetchCategories(),
+    ]);
   }
 
-  // ─── Fetch products (internal) ─────────────────────────────────────────────
   Future<void> _fetchProducts({bool reset = false}) async {
     final page = reset ? 1 : state.currentPage + 1;
 
     final sortBy = switch (state.sortOption) {
-      'priceAsc' => 'price_asc',
+      'priceAsc'  => 'price_asc',
       'priceDesc' => 'price_desc',
-      'newest' => 'newest',
-      _ => null,
+      'newest'    => 'newest',
+      _           => null,
     };
 
     final params = ProductSearchParams(
       keyword: state.searchQuery.isNotEmpty ? state.searchQuery : null,
-      category: state.selectedCategory != 'Tất cả'
-          ? state.selectedCategory
-          : null,
+      category: state.selectedCategory != 'Tất cả' ? state.selectedCategory : null,
       sortBy: sortBy,
       page: page,
       pageSize: 20,
@@ -119,96 +107,81 @@ class ProductViewModel extends StateNotifier<ProductState> {
         ? await _productService.searchProducts(state.searchQuery, page: page)
         : await _productService.getProducts(params: params);
 
-    if (result.isSuccess) {
+    if (result.error != null) {
       state = state.copyWith(
         isLoading: false,
         isLoadingMore: false,
-        products: reset
-            ? result.products
-            : [...state.products, ...result.products],
+        errorMessage: result.error!.message, 
+      );
+      return;
+    }
+
+    final data = result.data!;
+    if (data.isSuccess) {
+      state = state.copyWith(
+        isLoading: false,
+        isLoadingMore: false,
+        products: reset ? data.products : [...state.products, ...data.products],
         currentPage: page,
-        hasNextPage: result.pagination?.hasNextPage ?? false,
+        hasNextPage: data.pagination?.hasNextPage ?? false,
       );
     } else {
       state = state.copyWith(
         isLoading: false,
         isLoadingMore: false,
-        errorMessage: result.message,
+        errorMessage: data.message,
       );
     }
   }
 
-  // ─── Load thêm (pagination) ────────────────────────────────────────────────
   Future<void> loadMore() async {
     if (state.isLoadingMore || !state.hasNextPage) return;
     state = state.copyWith(isLoadingMore: true);
-    try {
-      await _fetchProducts(reset: false);
-    } on DioException catch (e) {
-      state = state.copyWith(
-        isLoadingMore: false,
-        errorMessage: _parseError(e),
-      );
-    }
+    await _fetchProducts(reset: false); 
   }
 
-  // ─── Chi tiết sản phẩm ────────────────────────────────────────────────────
   Future<void> loadProductDetail(String id) async {
     state = state.copyWith(isLoading: true, clearError: true);
-    try {
-      final result = await _productService.getProductById(id);
-      if (result.isSuccess && result.product != null) {
-        state = state.copyWith(
-          isLoading: false,
-          selectedProduct: result.product,
-        );
-      } else {
-        state = state.copyWith(
-          isLoading: false,
-          errorMessage: result.message,
-        );
-      }
-    } on DioException catch (e) {
-      state = state.copyWith(
-        isLoading: false,
-        errorMessage: _parseError(e),
-      );
+
+    final result = await _productService.getProductById(id);
+
+    if (result.error != null) {
+      state = state.copyWith(isLoading: false, errorMessage: result.error!.message);
+      return;
+    }
+
+    final data = result.data!;
+    if (data.isSuccess && data.product != null) {
+      state = state.copyWith(isLoading: false, selectedProduct: data.product);
+    } else {
+      state = state.copyWith(isLoading: false, errorMessage: data.message);
     }
   }
 
-  // ─── Đổi category ─────────────────────────────────────────────────────────
+  Future<void> _fetchCategories() async {
+    final result = await _productService.getCategories();
+    if (result.error == null && result.data!.isSuccess) {
+      state = state.copyWith(categories: ['Tất cả', ...result.data!.data]);
+    }
+  }
+
   Future<void> selectCategory(String category) async {
     if (state.selectedCategory == category) return;
-    state = state.copyWith(
-      selectedCategory: category,
-      isLoading: true,
-      clearError: true,
-    );
+    state = state.copyWith(selectedCategory: category, isLoading: true, clearError: true);
     await _fetchProducts(reset: true);
   }
 
-  // ─── Tìm kiếm ─────────────────────────────────────────────────────────────
   Future<void> search(String query) async {
-    state = state.copyWith(
-      searchQuery: query,
-      isLoading: true,
-      clearError: true,
-    );
+    state = state.copyWith(searchQuery: query, isLoading: true, clearError: true);
     await _fetchProducts(reset: true);
   }
 
-  // ─── Sắp xếp ──────────────────────────────────────────────────────────────
   Future<void> setSortOption(String option) async {
     if (state.sortOption == option) return;
-    state = state.copyWith(
-      sortOption: option,
-      isLoading: true,
-      clearError: true,
-    );
+    state = state.copyWith(sortOption: option, isLoading: true, clearError: true);
     await _fetchProducts(reset: true);
   }
 
-  // ─── Reset filter ──────────────────────────────────────────────────────────
   Future<void> resetFilters() async {
     state = state.copyWith(
       selectedCategory: 'Tất cả',
@@ -220,35 +193,7 @@ class ProductViewModel extends StateNotifier<ProductState> {
     await _fetchProducts(reset: true);
   }
 
-  // ─── Fetch categories từ BE ────────────────────────────────────────────────
-  Future<void> _fetchCategories() async {
-    final result = await _productService.getCategories();
-    if (result.isSuccess) {
-      state = state.copyWith(
-        categories: ['Tất cả', ...result.data],
-      );
-    }
-  }
-
-  // ─── Helpers ──────────────────────────────────────────────────────────────
   void clearError() => state = state.copyWith(clearError: true);
-
-  String _parseError(Object e) {
-    if (e is DioException) {
-      final statusCode = e.response?.statusCode;
-      final message = e.response?.data?['message'];
-      if (message != null && message is String) return message;
-      return switch (statusCode) {
-        400 => 'Yêu cầu không hợp lệ',
-        401 => 'Vui lòng đăng nhập lại',
-        404 => 'Không tìm thấy sản phẩm',
-        500 => 'Lỗi server, vui lòng thử lại',
-        null => 'Không thể kết nối server',
-        _ => 'Đã có lỗi xảy ra (code: $statusCode)',
-      };
-    }
-    return e.toString();
-  }
 }
 
 // ─── Providers ────────────────────────────────────────────────────────────────

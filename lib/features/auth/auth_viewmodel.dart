@@ -1,4 +1,3 @@
-import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'models/auth_models.dart';
 import 'services/auth_service.dart';
@@ -62,41 +61,31 @@ class AuthViewModel extends StateNotifier<AuthState> {
 
   AuthViewModel(this._authService) : super(const AuthState());
 
-  // ─── Login ──────────────────────────────────────────────────
   Future<bool> login({
     required String email,
     required String password,
   }) async {
     state = state.copyWith(isLoading: true, clearError: true);
 
-    try {
-      final result = await _authService.login(
-        LoginRequest(email: email, password: password),
-      );
+    final result = await _authService.login(
+      LoginRequest(email: email, password: password),
+    );
 
-      if (result.isSuccess && result.user != null) {
-        state = state.copyWith(
-          isLoading: false,
-          user: UserEntity.fromModel(result.user!),
-        );
-        return true;
-      }
-
-      state = state.copyWith(
-        isLoading: false,
-        errorMessage: result.message,
-      );
-      return false;
-    } on DioException catch (e) {
-      state = state.copyWith(
-        isLoading: false,
-        errorMessage: _parseError(e),
-      );
+    if (result.error != null) {
+      state = state.copyWith(isLoading: false, errorMessage: result.error!.message);
       return false;
     }
+
+    final data = result.data!;
+    if (data.isSuccess && data.user != null) {
+      state = state.copyWith(isLoading: false, user: UserEntity.fromModel(data.user!));
+      return true;
+    }
+
+    state = state.copyWith(isLoading: false, errorMessage: data.message);
+    return false;
   }
 
-  // ─── Register ───────────────────────────────────────────────
   Future<bool> register({
     required String fullName,
     required String email,
@@ -106,69 +95,42 @@ class AuthViewModel extends StateNotifier<AuthState> {
   }) async {
     state = state.copyWith(isLoading: true, clearError: true);
 
-    try {
-      final result = await _authService.register(
-        RegisterRequest(
-          email: email,
-          password: password,
-          confirmPassword: confirmPassword,
-          fullName: fullName,
-          phoneNumber: phoneNumber,
-        ),
-      );
+    final result = await _authService.register(
+      RegisterRequest(
+        email: email,
+        password: password,
+        confirmPassword: confirmPassword,
+        fullName: fullName,
+        phoneNumber: phoneNumber,
+      ),
+    );
 
-      if (result.isSuccess && result.user != null) {
-        state = state.copyWith(
-          isLoading: false,
-          user: UserEntity.fromModel(result.user!),
-        );
-        return true;
-      }
-
-      state = state.copyWith(
-        isLoading: false,
-        errorMessage: result.message,
-      );
-      return false;
-    } on DioException catch (e) {
-      state = state.copyWith(
-        isLoading: false,
-        errorMessage: _parseError(e),
-      );
+    if (result.error != null) {
+      state = state.copyWith(isLoading: false, errorMessage: result.error!.message);
       return false;
     }
+
+    final data = result.data!;
+    if (data.isSuccess && data.user != null) {
+      state = state.copyWith(isLoading: false, user: UserEntity.fromModel(data.user!));
+      return true;
+    }
+
+    state = state.copyWith(isLoading: false, errorMessage: data.message);
+    return false;
   }
 
-  // ─── Logout ─────────────────────────────────────────────────
   Future<void> logout() async {
     state = state.copyWith(isLoading: true);
     await _authService.logout();
-    state = const AuthState(); 
-  }
-  Future<void> loginWithGoogle() async {
+    state = const AuthState();
   }
 
-  Future<void> loginWithFacebook() async {
-  }
+  Future<void> loginWithGoogle() async {}
+  Future<void> loginWithFacebook() async {}
 
-  // ─── Helpers ────────────────────────────────────────────────
   void clearError() => state = state.copyWith(clearError: true);
 
-  String _parseError(DioException e) {
-    final statusCode = e.response?.statusCode;
-    final message = e.response?.data?['message'];
-
-    if (message != null && message is String) return message;
-
-    return switch (statusCode) {
-      400 => 'Thông tin không hợp lệ',
-      401 => 'Email hoặc mật khẩu không đúng',
-      409 => 'Email đã được sử dụng',
-      500 => 'Lỗi server, vui lòng thử lại',
-      null => 'Không thể kết nối server',
-      _ => 'Đã có lỗi xảy ra (code: $statusCode)',
-    };
-  }
 }
 
 // ─── Provider ─────────────────────────────────────────────────────────────────
