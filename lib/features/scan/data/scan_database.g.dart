@@ -68,6 +68,12 @@ class $ScanRecordsTable extends ScanRecords
   late final GeneratedColumn<String> syncError = GeneratedColumn<String>(
       'sync_error', aliasedName, true,
       type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _sessionIdMeta =
+      const VerificationMeta('sessionId');
+  @override
+  late final GeneratedColumn<String> sessionId = GeneratedColumn<String>(
+      'session_id', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
   @override
   List<GeneratedColumn> get $columns => [
         id,
@@ -78,7 +84,8 @@ class $ScanRecordsTable extends ScanRecords
         glowScore,
         metricsJson,
         adviceText,
-        syncError
+        syncError,
+        sessionId
       ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -139,6 +146,10 @@ class $ScanRecordsTable extends ScanRecords
       context.handle(_syncErrorMeta,
           syncError.isAcceptableOrUnknown(data['sync_error']!, _syncErrorMeta));
     }
+    if (data.containsKey('session_id')) {
+      context.handle(_sessionIdMeta,
+          sessionId.isAcceptableOrUnknown(data['session_id']!, _sessionIdMeta));
+    }
     return context;
   }
 
@@ -166,6 +177,8 @@ class $ScanRecordsTable extends ScanRecords
           .read(DriftSqlType.string, data['${effectivePrefix}advice_text']),
       syncError: attachedDatabase.typeMapping
           .read(DriftSqlType.string, data['${effectivePrefix}sync_error']),
+      sessionId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}session_id']),
     );
   }
 
@@ -185,6 +198,7 @@ class ScanRecord extends DataClass implements Insertable<ScanRecord> {
   final String? metricsJson;
   final String? adviceText;
   final String? syncError;
+  final String? sessionId;
   const ScanRecord(
       {required this.id,
       required this.imagePath,
@@ -194,7 +208,8 @@ class ScanRecord extends DataClass implements Insertable<ScanRecord> {
       this.glowScore,
       this.metricsJson,
       this.adviceText,
-      this.syncError});
+      this.syncError,
+      this.sessionId});
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
@@ -216,6 +231,9 @@ class ScanRecord extends DataClass implements Insertable<ScanRecord> {
     }
     if (!nullToAbsent || syncError != null) {
       map['sync_error'] = Variable<String>(syncError);
+    }
+    if (!nullToAbsent || sessionId != null) {
+      map['session_id'] = Variable<String>(sessionId);
     }
     return map;
   }
@@ -241,6 +259,9 @@ class ScanRecord extends DataClass implements Insertable<ScanRecord> {
       syncError: syncError == null && nullToAbsent
           ? const Value.absent()
           : Value(syncError),
+      sessionId: sessionId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(sessionId),
     );
   }
 
@@ -257,6 +278,7 @@ class ScanRecord extends DataClass implements Insertable<ScanRecord> {
       metricsJson: serializer.fromJson<String?>(json['metricsJson']),
       adviceText: serializer.fromJson<String?>(json['adviceText']),
       syncError: serializer.fromJson<String?>(json['syncError']),
+      sessionId: serializer.fromJson<String?>(json['sessionId']),
     );
   }
   @override
@@ -272,6 +294,7 @@ class ScanRecord extends DataClass implements Insertable<ScanRecord> {
       'metricsJson': serializer.toJson<String?>(metricsJson),
       'adviceText': serializer.toJson<String?>(adviceText),
       'syncError': serializer.toJson<String?>(syncError),
+      'sessionId': serializer.toJson<String?>(sessionId),
     };
   }
 
@@ -284,7 +307,8 @@ class ScanRecord extends DataClass implements Insertable<ScanRecord> {
           Value<int?> glowScore = const Value.absent(),
           Value<String?> metricsJson = const Value.absent(),
           Value<String?> adviceText = const Value.absent(),
-          Value<String?> syncError = const Value.absent()}) =>
+          Value<String?> syncError = const Value.absent(),
+          Value<String?> sessionId = const Value.absent()}) =>
       ScanRecord(
         id: id ?? this.id,
         imagePath: imagePath ?? this.imagePath,
@@ -295,6 +319,7 @@ class ScanRecord extends DataClass implements Insertable<ScanRecord> {
         metricsJson: metricsJson.present ? metricsJson.value : this.metricsJson,
         adviceText: adviceText.present ? adviceText.value : this.adviceText,
         syncError: syncError.present ? syncError.value : this.syncError,
+        sessionId: sessionId.present ? sessionId.value : this.sessionId,
       );
   ScanRecord copyWithCompanion(ScanRecordsCompanion data) {
     return ScanRecord(
@@ -312,6 +337,7 @@ class ScanRecord extends DataClass implements Insertable<ScanRecord> {
       adviceText:
           data.adviceText.present ? data.adviceText.value : this.adviceText,
       syncError: data.syncError.present ? data.syncError.value : this.syncError,
+      sessionId: data.sessionId.present ? data.sessionId.value : this.sessionId,
     );
   }
 
@@ -326,14 +352,15 @@ class ScanRecord extends DataClass implements Insertable<ScanRecord> {
           ..write('glowScore: $glowScore, ')
           ..write('metricsJson: $metricsJson, ')
           ..write('adviceText: $adviceText, ')
-          ..write('syncError: $syncError')
+          ..write('syncError: $syncError, ')
+          ..write('sessionId: $sessionId')
           ..write(')'))
         .toString();
   }
 
   @override
   int get hashCode => Object.hash(id, imagePath, galleryPath, capturedAt,
-      syncStatus, glowScore, metricsJson, adviceText, syncError);
+      syncStatus, glowScore, metricsJson, adviceText, syncError, sessionId);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -346,7 +373,8 @@ class ScanRecord extends DataClass implements Insertable<ScanRecord> {
           other.glowScore == this.glowScore &&
           other.metricsJson == this.metricsJson &&
           other.adviceText == this.adviceText &&
-          other.syncError == this.syncError);
+          other.syncError == this.syncError &&
+          other.sessionId == this.sessionId);
 }
 
 class ScanRecordsCompanion extends UpdateCompanion<ScanRecord> {
@@ -359,6 +387,7 @@ class ScanRecordsCompanion extends UpdateCompanion<ScanRecord> {
   final Value<String?> metricsJson;
   final Value<String?> adviceText;
   final Value<String?> syncError;
+  final Value<String?> sessionId;
   const ScanRecordsCompanion({
     this.id = const Value.absent(),
     this.imagePath = const Value.absent(),
@@ -369,6 +398,7 @@ class ScanRecordsCompanion extends UpdateCompanion<ScanRecord> {
     this.metricsJson = const Value.absent(),
     this.adviceText = const Value.absent(),
     this.syncError = const Value.absent(),
+    this.sessionId = const Value.absent(),
   });
   ScanRecordsCompanion.insert({
     this.id = const Value.absent(),
@@ -380,6 +410,7 @@ class ScanRecordsCompanion extends UpdateCompanion<ScanRecord> {
     this.metricsJson = const Value.absent(),
     this.adviceText = const Value.absent(),
     this.syncError = const Value.absent(),
+    this.sessionId = const Value.absent(),
   })  : imagePath = Value(imagePath),
         capturedAt = Value(capturedAt);
   static Insertable<ScanRecord> custom({
@@ -392,6 +423,7 @@ class ScanRecordsCompanion extends UpdateCompanion<ScanRecord> {
     Expression<String>? metricsJson,
     Expression<String>? adviceText,
     Expression<String>? syncError,
+    Expression<String>? sessionId,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
@@ -403,6 +435,7 @@ class ScanRecordsCompanion extends UpdateCompanion<ScanRecord> {
       if (metricsJson != null) 'metrics_json': metricsJson,
       if (adviceText != null) 'advice_text': adviceText,
       if (syncError != null) 'sync_error': syncError,
+      if (sessionId != null) 'session_id': sessionId,
     });
   }
 
@@ -415,7 +448,8 @@ class ScanRecordsCompanion extends UpdateCompanion<ScanRecord> {
       Value<int?>? glowScore,
       Value<String?>? metricsJson,
       Value<String?>? adviceText,
-      Value<String?>? syncError}) {
+      Value<String?>? syncError,
+      Value<String?>? sessionId}) {
     return ScanRecordsCompanion(
       id: id ?? this.id,
       imagePath: imagePath ?? this.imagePath,
@@ -426,6 +460,7 @@ class ScanRecordsCompanion extends UpdateCompanion<ScanRecord> {
       metricsJson: metricsJson ?? this.metricsJson,
       adviceText: adviceText ?? this.adviceText,
       syncError: syncError ?? this.syncError,
+      sessionId: sessionId ?? this.sessionId,
     );
   }
 
@@ -459,6 +494,9 @@ class ScanRecordsCompanion extends UpdateCompanion<ScanRecord> {
     if (syncError.present) {
       map['sync_error'] = Variable<String>(syncError.value);
     }
+    if (sessionId.present) {
+      map['session_id'] = Variable<String>(sessionId.value);
+    }
     return map;
   }
 
@@ -473,7 +511,8 @@ class ScanRecordsCompanion extends UpdateCompanion<ScanRecord> {
           ..write('glowScore: $glowScore, ')
           ..write('metricsJson: $metricsJson, ')
           ..write('adviceText: $adviceText, ')
-          ..write('syncError: $syncError')
+          ..write('syncError: $syncError, ')
+          ..write('sessionId: $sessionId')
           ..write(')'))
         .toString();
   }
@@ -501,6 +540,7 @@ typedef $$ScanRecordsTableCreateCompanionBuilder = ScanRecordsCompanion
   Value<String?> metricsJson,
   Value<String?> adviceText,
   Value<String?> syncError,
+  Value<String?> sessionId,
 });
 typedef $$ScanRecordsTableUpdateCompanionBuilder = ScanRecordsCompanion
     Function({
@@ -513,6 +553,7 @@ typedef $$ScanRecordsTableUpdateCompanionBuilder = ScanRecordsCompanion
   Value<String?> metricsJson,
   Value<String?> adviceText,
   Value<String?> syncError,
+  Value<String?> sessionId,
 });
 
 class $$ScanRecordsTableFilterComposer
@@ -550,6 +591,9 @@ class $$ScanRecordsTableFilterComposer
 
   ColumnFilters<String> get syncError => $composableBuilder(
       column: $table.syncError, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get sessionId => $composableBuilder(
+      column: $table.sessionId, builder: (column) => ColumnFilters(column));
 }
 
 class $$ScanRecordsTableOrderingComposer
@@ -587,6 +631,9 @@ class $$ScanRecordsTableOrderingComposer
 
   ColumnOrderings<String> get syncError => $composableBuilder(
       column: $table.syncError, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get sessionId => $composableBuilder(
+      column: $table.sessionId, builder: (column) => ColumnOrderings(column));
 }
 
 class $$ScanRecordsTableAnnotationComposer
@@ -624,6 +671,9 @@ class $$ScanRecordsTableAnnotationComposer
 
   GeneratedColumn<String> get syncError =>
       $composableBuilder(column: $table.syncError, builder: (column) => column);
+
+  GeneratedColumn<String> get sessionId =>
+      $composableBuilder(column: $table.sessionId, builder: (column) => column);
 }
 
 class $$ScanRecordsTableTableManager extends RootTableManager<
@@ -658,6 +708,7 @@ class $$ScanRecordsTableTableManager extends RootTableManager<
             Value<String?> metricsJson = const Value.absent(),
             Value<String?> adviceText = const Value.absent(),
             Value<String?> syncError = const Value.absent(),
+            Value<String?> sessionId = const Value.absent(),
           }) =>
               ScanRecordsCompanion(
             id: id,
@@ -669,6 +720,7 @@ class $$ScanRecordsTableTableManager extends RootTableManager<
             metricsJson: metricsJson,
             adviceText: adviceText,
             syncError: syncError,
+            sessionId: sessionId,
           ),
           createCompanionCallback: ({
             Value<int> id = const Value.absent(),
@@ -680,6 +732,7 @@ class $$ScanRecordsTableTableManager extends RootTableManager<
             Value<String?> metricsJson = const Value.absent(),
             Value<String?> adviceText = const Value.absent(),
             Value<String?> syncError = const Value.absent(),
+            Value<String?> sessionId = const Value.absent(),
           }) =>
               ScanRecordsCompanion.insert(
             id: id,
@@ -691,6 +744,7 @@ class $$ScanRecordsTableTableManager extends RootTableManager<
             metricsJson: metricsJson,
             adviceText: adviceText,
             syncError: syncError,
+            sessionId: sessionId,
           ),
           withReferenceMapper: (p0) => p0
               .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
