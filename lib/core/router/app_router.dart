@@ -18,7 +18,8 @@ import 'package:glow_aura/features/profile/edit_profile_screen.dart';
 import 'package:glow_aura/features/product/product_list_screen.dart';
 import 'package:glow_aura/features/cart/cart_screen.dart';
 import 'package:glow_aura/features/checkout/checkout_screen.dart';
-
+import 'package:glow_aura/features/product/product_detail_screen.dart';
+import 'package:glow_aura/features/scan/data/models/skin_analysis_result.dart';
 
 class AppRouter {
   static final GoRouter router = GoRouter(
@@ -64,14 +65,20 @@ class AppRouter {
             );
           }
           return ScanDetailScreen(
-            imagePath: extra['imagePath'] as String,
-            scanId: extra['scanId'] as int,
-          );
+          imagePath: extra['imagePath'] as String,
+          result: extra['result'] as SkinAnalysisResult,
+        );
         },
       ),
       GoRoute(path: '/advice',       builder: (c, s) => const AdviceScreen()),
       GoRoute(path: '/edit-profile', builder: (c, s) => const EditProfileScreen()),
       GoRoute(path: '/products', builder: (c, s) => const ProductListScreen()),
+      GoRoute(
+          path: '/product-detail/:id',
+          builder: (context, state) => ProductDetailScreen(
+            productId: state.pathParameters['id']!,
+          ),
+        ),
       GoRoute(path: '/cart', builder: (c, s) => const CartScreen()),
       GoRoute(path: '/checkout', builder: (c, s) => const CheckoutScreen()),
     ],

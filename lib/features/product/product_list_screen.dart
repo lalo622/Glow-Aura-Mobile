@@ -5,8 +5,8 @@ import 'package:glow_aura/core/theme/app_theme.dart';
 import 'package:glow_aura/shared/widgets/main_scaffold.dart';
 import 'models/product_model.dart';
 import 'product_viewmodel.dart';
-import 'dart:convert';
-import 'dart:typed_data';
+import 'package:glow_aura/shared/widgets/product_image.dart';
+
 
 class ProductListScreen extends ConsumerStatefulWidget {
   const ProductListScreen({super.key});
@@ -424,9 +424,11 @@ class _ProductCard extends StatelessWidget {
                       topLeft: Radius.circular(12),
                       topRight: Radius.circular(12),
                     ),
-                    child: product.imageUrl != null
-                        ? _ProductImage(imageUrl: product.imageUrl!)
-                        : _PlaceholderImage(name: product.name),
+                    child: ProductImageWidget(
+                      imageUrl: product.imageUrl,
+                      width: double.infinity,
+                      height: double.infinity,
+                    ),
                   ),
                   // Discount badge
                   if (product.hasDiscount)
@@ -528,7 +530,7 @@ class _ProductCard extends StatelessWidget {
                         ),
                         // Add to cart
                         GestureDetector(
-                          onTap: () {}, // TODO: kết nối cart
+                          onTap: () {}, 
                           child: Container(
                             width: 28,
                             height: 28,
@@ -550,65 +552,6 @@ class _ProductCard extends StatelessWidget {
         ),
       ),
     );
-  }
-}
-
-// ── Placeholder image ─────────────────────────────────────────────────────────
-class _PlaceholderImage extends StatelessWidget {
-  final String name;
-  const _PlaceholderImage({required this.name});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      color: AppColors.primarySubtle,
-      child: const Center(
-        child: Icon(Icons.inventory_2_outlined,
-            size: 52, color: AppColors.primaryTint),
-      ),
-    );
-  }
-}
-class _ProductImage extends StatelessWidget {
-  final String imageUrl;
-
-  const _ProductImage({
-    required this.imageUrl,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    try {
-      if (imageUrl.startsWith('data:image')) {
-        final String base64String = imageUrl.split(',').last;
-        final Uint8List bytes = base64Decode(base64String);
-
-        return Image.memory(
-          bytes,
-          width: double.infinity,
-          height: double.infinity,
-          fit: BoxFit.cover,
-          gaplessPlayback: true,
-        );
-      }
-
-      return Image.network(
-        imageUrl,
-        width: double.infinity,
-        height: double.infinity,
-        fit: BoxFit.cover,
-      );
-    } catch (e) {
-      debugPrint('Image decode error: $e');
-
-      return const Center(
-        child: Icon(
-          Icons.broken_image_outlined,
-          size: 40,
-        ),
-      );
-    }
   }
 }
 

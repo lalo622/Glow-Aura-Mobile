@@ -103,6 +103,7 @@ class _OnboardingPage extends StatelessWidget {
                 ],
               ),
             ),
+
             SizedBox(
               height: screenHeight * 0.38,
               width: double.infinity,
@@ -197,6 +198,7 @@ class _OnboardingPage extends StatelessWidget {
                 ],
               ),
             ],
+
             SizedBox(height: bottomPadding > 0 ? AppColors.s16 : AppColors.s32),
           ],
         ),
@@ -250,7 +252,7 @@ class _GradientHero extends StatelessWidget {
 class _SheenPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
-    final paint = Paint()..color = Colors.white.withValues(alpha: 0.15);
+    final paint = Paint()..color = Colors.white.withValues(alpha:0.15);
     final path = Path()
       ..moveTo(size.width * 0.3, 0)
       ..lineTo(size.width * 0.6, 0)
@@ -286,7 +288,7 @@ class _AiScanHero extends StatelessWidget {
                 end: Alignment.bottomCenter,
                 colors: [
                   Colors.transparent,
-                  Colors.black.withValues(alpha: 0.45),
+                  Colors.black.withValues(alpha:0.45),
                 ],
               ),
             ),

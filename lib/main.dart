@@ -1,10 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';               
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:glow_aura/core/theme/app_theme.dart';
 import 'package:glow_aura/core/theme/theme_provider.dart';
 import 'package:glow_aura/core/router/app_router.dart';
 
-void main() {
+void main() async {                                     
+  WidgetsFlutterBinding.ensureInitialized();             
+  await SystemChrome.setPreferredOrientations([          
+    DeviceOrientation.portraitUp,
+    DeviceOrientation.portraitDown,
+  ]);
   runApp(const ProviderScope(child: GlowAuraApp()));
 }
 

@@ -10,7 +10,7 @@ import 'package:glow_aura/core/theme/app_theme.dart';
 
 import 'services/camera_service.dart';
 import 'data/scan_database.dart';
-import 'data/image_save_service.dart';
+import 'services/image_save_service.dart';
 
 class ScanScreen extends ConsumerStatefulWidget {
   const ScanScreen({super.key});
@@ -149,36 +149,69 @@ class _ScanScreenState extends ConsumerState<ScanScreen>
     }
   }
 
-    Future<void> _onCapture() async {
-    if (_isCapturing) return;
-    HapticFeedback.mediumImpact();
-    setState(() => _isCapturing = true);
+    Future<void> _onCapture({int retryCount = 0}) async {
+  if (_isCapturing) return;
+  HapticFeedback.mediumImpact();
+  setState(() => _isCapturing = true);
 
-    _shutterController.forward(from: 0.0); 
+  try {
+    debugPrint('[Capture] Bắt đầu takePicture (retry=$retryCount)');
+    final file = await _cameraService.takeBurstPicture(count: 3);
+    debugPrint('[Capture] takePicture xong: ${file?.path}');
 
-    final file = await _cameraService.takePicture();
+    if (!mounted) return; 
 
     if (file == null) {
-      setState(() => _isCapturing = false);
-      _resetCaptureState();
-      return;
+      if (retryCount < 2) {
+        debugPrint('[Capture] Bị reject, thử lại lần #${retryCount + 1}');
+        await _cameraService.restartStream();
+        if (!mounted) return;
+        await Future.delayed(const Duration(milliseconds: 300));
+        if (!mounted) return;
+
+        setState(() => _isCapturing = false);
+        _hasTriggeredCapture = false;
+        return;
+      } else {
+        debugPrint('[Capture] Hết lượt retry, báo lỗi cho user');
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Ảnh bị mờ hoặc lệch, vui lòng thử lại')),
+        );
+        setState(() => _isCapturing = false);
+        await _resetCaptureState();
+        return;
+      }
     }
 
+    _shutterController.forward(from: 0.0);
+
+    debugPrint('[Capture] Bắt đầu saveScan');
     final imageSaveService = ref.read(imageSaveServiceProvider);
     final result = await imageSaveService.saveScan(file.path);
+    debugPrint('[Capture] saveScan xong: scanId=${result.scanId}');
 
     if (!mounted) return;
     setState(() => _isCapturing = false);
 
+    debugPrint('[Capture] Chuẩn bị push /scan-result');
     await context.push('/scan-result', extra: {
       'imagePath': result.localPath,
       'scanId':    result.scanId,
     });
+    debugPrint('[Capture] Đã push xong, quay lại từ scan-result');
 
+    if (mounted) await _resetCaptureState();
+  } catch (e, st) {
+    debugPrint('[Capture]  LỖI KHÔNG BẮT ĐƯỢC: $e');
+    debugPrint('$st');
     if (mounted) {
-      await _resetCaptureState();
+      setState(() => _isCapturing = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Có lỗi xảy ra khi xử lý ảnh: $e')),
+      );
     }
   }
+}
 
     Future<void> _resetCaptureState() async {
     setState(() {
@@ -549,7 +582,7 @@ class _ProgressRingPainter extends CustomPainter {
         canvas.drawPath(
             metric.extractPath(0, endDistance - metric.length), paint);
       }
-    }
+    } 
   }
 
   @override

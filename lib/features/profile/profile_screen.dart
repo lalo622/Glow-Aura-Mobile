@@ -4,6 +4,10 @@ import 'package:go_router/go_router.dart';
 import 'package:glow_aura/core/theme/app_theme.dart';
 import 'package:glow_aura/features/auth/auth_viewmodel.dart';
 import 'package:glow_aura/features/profile/profile_viewmodel.dart';
+import 'package:glow_aura/features/profile/tabs/profile_info_tab.dart';
+import 'package:glow_aura/features/profile/tabs/scan_history_tab.dart';
+import 'package:glow_aura/features/profile/widgets/profile_avatar_section.dart';
+import 'package:glow_aura/features/profile/widgets/profile_stats_row.dart';
 import 'package:glow_aura/shared/widgets/main_scaffold.dart';
 
 class ProfileScreen extends ConsumerStatefulWidget {
@@ -13,14 +17,23 @@ class ProfileScreen extends ConsumerStatefulWidget {
   ConsumerState<ProfileScreen> createState() => _ProfileScreenState();
 }
 
-class _ProfileScreenState extends ConsumerState<ProfileScreen> {
+class _ProfileScreenState extends ConsumerState<ProfileScreen>
+    with SingleTickerProviderStateMixin {
   bool _reminderEnabled = true;
+  late final TabController _tabController;
 
   @override
   void initState() {
     super.initState();
-    Future.microtask(() =>
-        ref.read(profileViewModelProvider.notifier).loadProfile());
+    _tabController = TabController(length: 2, vsync: this);
+    Future.microtask(
+        () => ref.read(profileViewModelProvider.notifier).loadProfile());
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
   }
 
   @override
@@ -28,12 +41,12 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     final profileState = ref.watch(profileViewModelProvider);
     final authState = ref.watch(authViewModelProvider);
 
-    final fullName = profileState.profile?.fullName ??
-        authState.user?.fullName ?? '---';
-    final email = profileState.profile?.email ??
-        authState.user?.email ?? '---';
-    final vipLevel = profileState.profile?.vipLevel ??
-        authState.user?.vipLevel ?? 'None';
+    final fullName =
+        profileState.profile?.fullName ?? authState.user?.fullName ?? '---';
+    final email =
+        profileState.profile?.email ?? authState.user?.email ?? '---';
+    final vipLevel =
+        profileState.profile?.vipLevel ?? authState.user?.vipLevel ?? 'None';
     final skinType = profileState.profile?.skinType ?? '---';
     final age = profileState.profile?.age?.toString() ?? '---';
     final isVip = vipLevel != 'None';
@@ -43,7 +56,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            // ── App bar ───────────────────────────────────────────────────
             Padding(
               padding: const EdgeInsets.symmetric(
                   horizontal: AppColors.s16, vertical: AppColors.s12),
@@ -74,151 +86,49 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             ),
             Container(height: 1, color: AppColors.border),
 
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: AppColors.s16),
+              child: Column(
+                children: [
+                  const SizedBox(height: AppColors.s24),
+                  ProfileAvatarSection(
+                      fullName: fullName, email: email, isVip: isVip),
+                  const SizedBox(height: AppColors.s16),
+                  ProfileStatsRow(skinType: skinType, age: age),
+                  const SizedBox(height: AppColors.s8),
+                ],
+              ),
+            ),
+
+            TabBar(
+              controller: _tabController,
+              labelColor: AppColors.primary,
+              unselectedLabelColor: AppColors.textSecondary,
+              indicatorColor: AppColors.primary,
+              indicatorSize: TabBarIndicatorSize.tab,
+              labelStyle: AppTextStyles.title(),
+              tabs: const [
+                Tab(text: 'Hồ sơ'),
+                Tab(text: 'Lịch sử chụp'),
+              ],
+            ),
+            Container(height: 1, color: AppColors.border),
+
             Expanded(
               child: profileState.isLoading
                   ? const Center(child: CircularProgressIndicator())
-                  : SingleChildScrollView(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: AppColors.s16),
-                      child: Column(
-                        children: [
-                          const SizedBox(height: AppColors.s24),
-
-                          // ── Avatar + info ─────────────────────────────
-                          _AvatarSection(
-                            fullName: fullName,
-                            email: email,
-                            isVip: isVip,
-                          ),
-                          const SizedBox(height: AppColors.s16),
-
-                          // ── Stats row ──────────────────────────────────
-                          _StatsRow(
-                            skinType: skinType,
-                            age: age,
-                          ),
-                          const SizedBox(height: AppColors.s24),
-
-                          // ── Section: Thông tin cá nhân ─────────────────
-                          const _SectionLabel('THÔNG TIN CÁ NHÂN'),
-                          const SizedBox(height: AppColors.s8),
-                          _MenuCard(items: [
-                            _MenuItem(
-                              icon: Icons.person_outline,
-                              iconBg: AppColors.primaryTint,
-                              iconColor: AppColors.primary,
-                              label: 'Chỉnh sửa hồ sơ',
-                              onTap: () => context.go('/edit-profile'),
-                            ),
-                            _MenuItem(
-                              icon: Icons.monitor_heart_outlined,
-                              iconBg: AppColors.primaryTint,
-                              iconColor: AppColors.primary,
-                              label: 'Chỉ số sức khỏe da',
-                              onTap: () {},
-                            ),
-                          ]),
-                          const SizedBox(height: AppColors.s24),
-
-                          // ── Section: Chu trình chăm sóc da ────────────
-                          const _SectionLabel('CHU TRÌNH CHĂM SÓC DA'),
-                          const SizedBox(height: AppColors.s8),
-                          _MenuCard(items: [
-                            _MenuItem(
-                              icon: Icons.calendar_today_outlined,
-                              iconBg: AppColors.primaryTint,
-                              iconColor: AppColors.primary,
-                              label: 'Cài đặt chu trình',
-                              subtitle: 'Sáng & Tối hàng ngày',
-                              onTap: () {},
-                            ),
-                            _MenuItem(
-                              icon: Icons.inventory_2_outlined,
-                              iconBg: AppColors.primaryTint,
-                              iconColor: AppColors.primary,
-                              label: 'Tủ đồ mỹ phẩm của tôi',
-                              onTap: () {},
-                            ),
-                            _MenuItem(
-                              icon: Icons.notifications_outlined,
-                              iconBg: AppColors.primaryTint,
-                              iconColor: AppColors.primary,
-                              label: 'Lời nhắc chăm sóc',
-                              onTap: () {},
-                              trailing: Switch(
-                                value: _reminderEnabled,
-                                onChanged: (v) =>
-                                    setState(() => _reminderEnabled = v),
-                                activeThumbColor: AppColors.primary,
-                              ),
-                            ),
-                          ]),
-                          const SizedBox(height: AppColors.s24),
-
-                          // ── Section: Premium & Hỗ trợ ─────────────────
-                          const _SectionLabel('PREMIUM & HỖ TRỢ'),
-                          const SizedBox(height: AppColors.s8),
-                          _MenuCard(items: [
-                            _MenuItem(
-                              icon: Icons.workspace_premium_outlined,
-                              iconBg: const Color(0xFFFBF1DE),
-                              iconColor: AppColors.accentGold,
-                              label: 'Gói hội viên Premium',
-                              onTap: () {},
-                              trailing: isVip
-                                  ? Container(
-                                      padding: const EdgeInsets.symmetric(
-                                          horizontal: AppColors.s8,
-                                          vertical: 4),
-                                      decoration: BoxDecoration(
-                                        color: AppColors.primary,
-                                        borderRadius:
-                                            BorderRadius.circular(20),
-                                      ),
-                                      child: Text('ĐANG KÍCH HOẠT',
-                                          style: AppTextStyles.label(
-                                              color: Colors.white)),
-                                    )
-                                  : null,
-                            ),
-                            _MenuItem(
-                              icon: Icons.help_outline,
-                              iconBg: AppColors.primaryTint,
-                              iconColor: AppColors.primary,
-                              label: 'Trung tâm trợ giúp',
-                              onTap: () {},
-                            ),
-                          ]),
-                          const SizedBox(height: AppColors.s24),
-
-                          // ── Logout button ──────────────────────────────
-                          GestureDetector(
-                            onTap: () => _showLogoutDialog(context),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                  vertical: AppColors.s16),
-                              decoration: BoxDecoration(
-                                color: AppColors.surface,
-                                borderRadius: BorderRadius.circular(12),
-                                border:
-                                    Border.all(color: AppColors.border),
-                              ),
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  const Icon(Icons.logout,
-                                      color: AppColors.error, size: 20),
-                                  const SizedBox(width: AppColors.s8),
-                                  Text('Đăng xuất',
-                                      style: AppTextStyles.title(
-                                          color: AppColors.error)),
-                                ],
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 100),
-                        ],
-                      ),
+                  : TabBarView(
+                      controller: _tabController,
+                      children: [
+                        ProfileInfoTab(
+                          isVip: isVip,
+                          reminderEnabled: _reminderEnabled,
+                          onReminderChanged: (v) =>
+                              setState(() => _reminderEnabled = v),
+                          onLogout: () => _showLogoutDialog(context),
+                        ),
+                        const ScanHistoryTab(),
+                      ],
                     ),
             ),
           ],
@@ -231,8 +141,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
-        shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Text('Đăng xuất', style: AppTextStyles.heading()),
         content: Text(
           'Bạn có chắc chắn muốn đăng xuất không?',
@@ -242,15 +151,12 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           TextButton(
             onPressed: () => Navigator.pop(context),
             child: Text('Huỷ',
-                style: AppTextStyles.body(
-                    color: AppColors.textSecondary)),
+                style: AppTextStyles.body(color: AppColors.textSecondary)),
           ),
           TextButton(
             onPressed: () async {
               Navigator.pop(context);
-              await ref
-                  .read(authViewModelProvider.notifier)
-                  .logout();
+              await ref.read(authViewModelProvider.notifier).logout();
               if (context.mounted) context.go('/login');
             },
             child: Text('Đăng xuất',
@@ -260,226 +166,4 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       ),
     );
   }
-}
-
-// ── Avatar section ────────────────────────────────────────────────────────────
-class _AvatarSection extends StatelessWidget {
-  final String fullName;
-  final String email;
-  final bool isVip;
-
-  const _AvatarSection({
-    required this.fullName,
-    required this.email,
-    required this.isVip,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Stack(
-          children: [
-            Container(
-              width: 90,
-              height: 90,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: AppColors.primaryTint,
-                border: Border.all(color: AppColors.primary, width: 2),
-              ),
-              child: const Icon(Icons.person,
-                  size: 50, color: AppColors.primary),
-            ),
-            if (isVip)
-              Positioned(
-                bottom: 0,
-                left: 0,
-                right: 0,
-                child: Center(
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: AppColors.s8, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: AppColors.primary,
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Text('PREMIUM',
-                        style: AppTextStyles.label(color: Colors.white)),
-                  ),
-                ),
-              ),
-          ],
-        ),
-        const SizedBox(height: AppColors.s12),
-        Text(fullName, style: AppTextStyles.heading()),
-        const SizedBox(height: AppColors.s4),
-        Text(email,
-            style: AppTextStyles.body(color: AppColors.textSecondary)),
-      ],
-    );
-  }
-}
-
-// ── Stats row ─────────────────────────────────────────────────────────────────
-class _StatsRow extends StatelessWidget {
-  final String skinType;
-  final String age;
-
-  const _StatsRow({required this.skinType, required this.age});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(
-          vertical: AppColors.s12, horizontal: AppColors.s8),
-      decoration: BoxDecoration(
-        color: AppColors.primarySubtle,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.primaryTint),
-      ),
-      child: Row(
-        children: [
-          _StatItem(label: 'LOẠI DA', value: skinType),
-          _Divider(),
-          _StatItem(label: 'ĐỘ TUỔI', value: age),
-          _Divider(),
-          const _StatItem(label: 'ĐIỂM GLOW', value: '---'),
-        ],
-      ),
-    );
-  }
-}
-
-class _StatItem extends StatelessWidget {
-  final String label, value;
-  const _StatItem({required this.label, required this.value});
-
-  @override
-  Widget build(BuildContext context) {
-    return Expanded(
-      child: Column(
-        children: [
-          Text(label, style: AppTextStyles.label()),
-          const SizedBox(height: AppColors.s4),
-          Text(value,
-              style: AppTextStyles.title(color: AppColors.primary),
-              textAlign: TextAlign.center),
-        ],
-      ),
-    );
-  }
-}
-
-class _Divider extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Container(width: 1, height: 32, color: AppColors.primaryTint);
-  }
-}
-
-class _SectionLabel extends StatelessWidget {
-  final String text;
-  const _SectionLabel(this.text);
-
-  @override
-  Widget build(BuildContext context) {
-    return Align(
-      alignment: Alignment.centerLeft,
-      child: Text(text, style: AppTextStyles.label()),
-    );
-  }
-}
-
-class _MenuCard extends StatelessWidget {
-  final List<_MenuItem> items;
-  const _MenuCard({required this.items});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Column(
-        children: items.asMap().entries.map((entry) {
-          final i = entry.key;
-          final item = entry.value;
-          return Column(
-            children: [
-              _MenuItemTile(item: item),
-              if (i < items.length - 1)
-                const Divider(
-                    height: 1, color: AppColors.border, indent: 56),
-            ],
-          );
-        }).toList(),
-      ),
-    );
-  }
-}
-
-class _MenuItemTile extends StatelessWidget {
-  final _MenuItem item;
-  const _MenuItemTile({required this.item});
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: item.trailing is Switch ? null : item.onTap,
-      borderRadius: BorderRadius.circular(12),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(
-            horizontal: AppColors.s16, vertical: AppColors.s12),
-        child: Row(
-          children: [
-            Container(
-              width: 36,
-              height: 36,
-              decoration: BoxDecoration(
-                color: item.iconBg,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Icon(item.icon, color: item.iconColor, size: 18),
-            ),
-            const SizedBox(width: AppColors.s12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(item.label, style: AppTextStyles.title()),
-                  if (item.subtitle != null)
-                    Text(item.subtitle!, style: AppTextStyles.caption()),
-                ],
-              ),
-            ),
-            item.trailing ??
-                const Icon(Icons.chevron_right,
-                    color: AppColors.textTertiary, size: 20),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _MenuItem {
-  final IconData icon;
-  final Color iconBg, iconColor;
-  final String label;
-  final String? subtitle;
-  final VoidCallback onTap;
-  final Widget? trailing;
-
-  const _MenuItem({
-    required this.icon,
-    required this.iconBg,
-    required this.iconColor,
-    required this.label,
-    required this.onTap,
-    this.subtitle,
-    this.trailing,
-  });
 }
