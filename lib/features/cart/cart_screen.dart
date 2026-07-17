@@ -1,101 +1,30 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import '../../../core/theme/app_theme.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-class CartItemModel {
-  final String id;
-  final String brand;
-  final String name;
-  final String variant;
-  final double salePrice;
-  final double? originalPrice;
-  final String imageEmoji; 
-  int quantity;
+import '../../core/theme/app_theme.dart';
+import 'cart_viewmodel.dart';
+import 'data/models/cart_item_model.dart';
+import 'package:glow_aura/shared/widgets/product_image.dart';
 
-  CartItemModel({
-    required this.id,
-    required this.brand,
-    required this.name,
-    required this.variant,
-    required this.salePrice,
-    this.originalPrice,
-    required this.imageEmoji,
-    this.quantity = 1,
-  });
-}
-
-final List<CartItemModel> _mockCartItems = [
-  CartItemModel(
-    id: '1',
-    brand: 'La Roche-Posay',
-    name: 'Kem chống nắng Anthelios SPF 50+',
-    variant: 'Da nhạy cảm · 50ml',
-    salePrice: 385000,
-    originalPrice: 450000,
-    imageEmoji: '🧴',
-    quantity: 2,
-  ),
-  CartItemModel(
-    id: '2',
-    brand: 'Some By Mi',
-    name: 'Serum AHA BHA PHA 30 Days Miracle',
-    variant: 'Da dầu mụn · 50ml',
-    salePrice: 320000,
-    originalPrice: 380000,
-    imageEmoji: '✨',
-    quantity: 1,
-  ),
-  CartItemModel(
-    id: '3',
-    brand: 'CeraVe',
-    name: 'Sữa rửa mặt Hydrating Cleanser',
-    variant: 'Da khô · 236ml',
-    salePrice: 280000,
-    imageEmoji: '💧',
-    quantity: 1,
-  ),
-];
-
-class CartScreen extends StatefulWidget {
+class CartScreen extends ConsumerStatefulWidget {
   const CartScreen({super.key});
 
   @override
-  State<CartScreen> createState() => _CartScreenState();
+  ConsumerState<CartScreen> createState() => _CartScreenState();
 }
 
-class _CartScreenState extends State<CartScreen> {
-  final List<CartItemModel> _items = List.from(_mockCartItems);
-  final TextEditingController _couponController = TextEditingController();
-  double _discountAmount = 0;
-  bool _couponApplied = false;
-  static const double _shippingThreshold = 500000;
+class _CartScreenState extends ConsumerState<CartScreen> {
 
-  @override
-  void dispose() {
-    _couponController.dispose();
-    super.dispose();
-  }
-
-  // ── Tính toán ──
-  int get _totalQuantity => _items.fold(0, (sum, i) => sum + i.quantity);
-
-  double get _subtotal =>
-      _items.fold(0, (sum, i) => sum + i.salePrice * i.quantity);
-
-  bool get _isFreeShipping => _subtotal >= _shippingThreshold;
-
-  double get _shippingFee => _isFreeShipping ? 0 : 30000;
-
-  double get _total => _subtotal + _shippingFee - _discountAmount;
 
   // ── Actions ──
   void _increment(CartItemModel item) {
-    setState(() => item.quantity++);
+    ref.read(cartViewModelProvider.notifier).increment(item);
   }
 
   void _decrement(CartItemModel item) {
     if (item.quantity > 1) {
-      setState(() => item.quantity--);
+      ref.read(cartViewModelProvider.notifier).decrement(item);
     } else {
       _confirmRemove(item);
     }
@@ -114,7 +43,8 @@ class _CartScreenState extends State<CartScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-              width: 40, height: 4,
+              width: 40,
+              height: 4,
               decoration: BoxDecoration(
                 color: AppColors.border,
                 borderRadius: BorderRadius.circular(2),
@@ -140,11 +70,9 @@ class _CartScreenState extends State<CartScreen> {
                 const SizedBox(width: AppColors.s12),
                 Expanded(
                   child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.error,
-                    ),
+                    style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
                     onPressed: () {
-                      setState(() => _items.removeWhere((e) => e.id == item.id));
+                      ref.read(cartViewModelProvider.notifier).removeItem(item.productId);
                       Navigator.pop(context);
                     },
                     child: const Text('Xóa'),
@@ -159,21 +87,8 @@ class _CartScreenState extends State<CartScreen> {
     );
   }
 
-  void _applyCoupon() {
-    final code = _couponController.text.trim().toUpperCase();
-    // gọi API kiểm tra coupon
-    if (code == 'GLOWAURA10') {
-      setState(() {
-        _discountAmount = _subtotal * 0.1;
-        _couponApplied = true;
-      });
-      _showSnack('Áp dụng mã thành công! Giảm 10%', isError: false);
-    } else if (code.isNotEmpty) {
-      _showSnack('Mã giảm giá không hợp lệ hoặc đã hết hạn', isError: true);
-    }
-  }
-
   void _showSnack(String msg, {required bool isError}) {
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(msg, style: AppTextStyles.body(color: Colors.white)),
@@ -186,47 +101,57 @@ class _CartScreenState extends State<CartScreen> {
   }
 
   void _goToCheckout() {
-    //  Navigator.push đến CheckoutScreen
     HapticFeedback.mediumImpact();
+    context.push('/checkout');
   }
 
   @override
   Widget build(BuildContext context) {
+    final cart = ref.watch(cartViewModelProvider);
+
+    ref.listen<CartState>(cartViewModelProvider, (previous, next) {
+      if (next.errorMessage != null && next.errorMessage != previous?.errorMessage) {
+        _showSnack(next.errorMessage!, isError: true);
+        ref.read(cartViewModelProvider.notifier).clearError();
+      }
+    });
+
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: _buildAppBar(),
-      body: _items.isEmpty ? _buildEmptyCart() : _buildCartBody(),
+      appBar: _buildAppBar(cart),
+      body: cart.isLoading && cart.items.isEmpty
+          ? const Center(child: CircularProgressIndicator())
+          : cart.isEmpty
+              ? _buildEmptyCart()
+              : _buildCartBody(cart),
     );
   }
 
-  AppBar _buildAppBar() {
-  return AppBar(
-    backgroundColor: AppColors.surface,
-    elevation: 0,
-    centerTitle: true,
-    leading: IconButton(
-      icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
-      color: AppColors.textPrimary,
-      onPressed: () {
-        if (context.canPop()) {
-          context.pop();
-        } else {
-          context.go('/home');
-        }
-      },
-    ),
-    title: Column(
-      children: [
-        Text('Giỏ hàng', style: AppTextStyles.title()),
-        if (_items.isNotEmpty)
-          Text(
-            '$_totalQuantity sản phẩm',
-            style: AppTextStyles.caption(),
-          ),
-      ],
-    ),
-  );
-}
+  AppBar _buildAppBar(CartState cart) {
+    return AppBar(
+      backgroundColor: AppColors.surface,
+      elevation: 0,
+      centerTitle: true,
+      leading: IconButton(
+        icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
+        color: AppColors.textPrimary,
+        onPressed: () {
+          if (context.canPop()) {
+            context.pop();
+          } else {
+            context.go('/home');
+          }
+        },
+      ),
+      title: Column(
+        children: [
+          Text('Giỏ hàng', style: AppTextStyles.title()),
+          if (cart.items.isNotEmpty)
+            Text('${cart.totalQuantity} sản phẩm', style: AppTextStyles.caption()),
+        ],
+      ),
+    );
+  }
 
   // ── Giỏ trống ──
   Widget _buildEmptyCart() {
@@ -237,17 +162,16 @@ class _CartScreenState extends State<CartScreen> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Container(
-              width: 96, height: 96,
+              width: 96,
+              height: 96,
               decoration: const BoxDecoration(
                 color: AppColors.primarySubtle,
                 shape: BoxShape.circle,
               ),
-              child: const Icon(Icons.shopping_bag_outlined,
-                  size: 44, color: AppColors.primary),
+              child: const Icon(Icons.shopping_bag_outlined, size: 44, color: AppColors.primary),
             ),
             const SizedBox(height: AppColors.s24),
-            Text('Giỏ hàng đang trống',
-                style: AppTextStyles.heading()),
+            Text('Giỏ hàng đang trống', style: AppTextStyles.heading()),
             const SizedBox(height: AppColors.s8),
             Text(
               'Hãy thêm sản phẩm yêu thích\nvào giỏ hàng của bạn nhé!',
@@ -256,7 +180,7 @@ class _CartScreenState extends State<CartScreen> {
             ),
             const SizedBox(height: AppColors.s32),
             ElevatedButton(
-              onPressed: () => Navigator.pop(context),
+              onPressed: () => context.pop(),
               child: const Text('Tiếp tục mua sắm'),
             ),
           ],
@@ -266,40 +190,27 @@ class _CartScreenState extends State<CartScreen> {
   }
 
   // ── Giỏ có sản phẩm ──
-  Widget _buildCartBody() {
+  Widget _buildCartBody(CartState cart) {
     return Column(
       children: [
         Expanded(
           child: ListView(
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppColors.s16,
-              vertical: AppColors.s12,
-            ),
+            padding: const EdgeInsets.symmetric(horizontal: AppColors.s16, vertical: AppColors.s12),
             children: [
               _buildSectionLabel('Sản phẩm'),
               const SizedBox(height: AppColors.s8),
-              ..._items.map(_buildCartItem),
+              ...cart.items.map(_buildCartItem),
               const SizedBox(height: AppColors.s16),
-              _buildCouponSection(),
-              const SizedBox(height: AppColors.s12),
-              _buildOrderSummary(),
-              const SizedBox(height: AppColors.s12),
-              _buildTrustBadges(),
-              const SizedBox(height: AppColors.s16),
+              const SizedBox(height: 24),
             ],
           ),
         ),
-        _buildBottomBar(),
+        _buildBottomBar(cart),
       ],
     );
   }
 
-  Widget _buildSectionLabel(String text) {
-    return Text(
-      text.toUpperCase(),
-      style: AppTextStyles.label(),
-    );
-  }
+  Widget _buildSectionLabel(String text) => Text(text.toUpperCase(), style: AppTextStyles.label());
 
   // ── Cart Item Card ──
   Widget _buildCartItem(CartItemModel item) {
@@ -315,12 +226,9 @@ class _CartScreenState extends State<CartScreen> {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Ảnh sản phẩm
             _buildProductImage(item),
             const SizedBox(width: AppColors.s12),
-            // Info
             Expanded(child: _buildItemInfo(item)),
-            // Nút xóa
             _buildDeleteButton(item),
           ],
         ),
@@ -329,17 +237,13 @@ class _CartScreenState extends State<CartScreen> {
   }
 
   Widget _buildProductImage(CartItemModel item) {
-    return Container(
-      width: 76, height: 76,
-      decoration: BoxDecoration(
-        color: AppColors.primarySubtle,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Center(
-        child: Text(item.imageEmoji, style: const TextStyle(fontSize: 32)),
-      ),
-    );
-  }
+  return ProductImageWidget(
+    imageUrl: item.imageUrl,
+    width: 76,
+    height: 76,
+    borderRadius: BorderRadius.circular(12),
+  );
+}
 
   Widget _buildItemInfo(CartItemModel item) {
     return Column(
@@ -347,24 +251,20 @@ class _CartScreenState extends State<CartScreen> {
       children: [
         Text(item.brand.toUpperCase(), style: AppTextStyles.label()),
         const SizedBox(height: 2),
-        Text(item.name,
-            style: AppTextStyles.title(),
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis),
-        const SizedBox(height: 4),
-        // Variant chip
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-          decoration: BoxDecoration(
-            color: AppColors.primarySubtle,
-            borderRadius: BorderRadius.circular(6),
-            border: Border.all(color: AppColors.primaryTint, width: 0.5),
+        Text(item.name, style: AppTextStyles.title(), maxLines: 2, overflow: TextOverflow.ellipsis),
+        if (item.volume != null) ...[
+          const SizedBox(height: 4),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+            decoration: BoxDecoration(
+              color: AppColors.primarySubtle,
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(color: AppColors.primaryTint, width: 0.5),
+            ),
+            child: Text(item.volume!, style: AppTextStyles.caption(color: AppColors.primary)),
           ),
-          child: Text(item.variant,
-              style: AppTextStyles.caption(color: AppColors.primary)),
-        ),
+        ],
         const SizedBox(height: 8),
-        // Giá + số lượng
         Row(
           children: [
             Expanded(child: _buildPriceGroup(item)),
@@ -381,17 +281,14 @@ class _CartScreenState extends State<CartScreen> {
       textBaseline: TextBaseline.alphabetic,
       children: [
         Text(
-          _formatPrice(item.salePrice),
-          style: AppTextStyles.title(color: AppColors.primary)
-              .copyWith(fontWeight: FontWeight.w700),
+          _formatPrice(item.price),
+          style: AppTextStyles.title(color: AppColors.primary).copyWith(fontWeight: FontWeight.w700),
         ),
-        if (item.originalPrice != null) ...[
+        if (item.hasDiscount) ...[
           const SizedBox(width: 4),
           Text(
             _formatPrice(item.originalPrice!),
-            style: AppTextStyles.caption().copyWith(
-              decoration: TextDecoration.lineThrough,
-            ),
+            style: AppTextStyles.caption().copyWith(decoration: TextDecoration.lineThrough),
           ),
         ],
       ],
@@ -419,19 +316,28 @@ class _CartScreenState extends State<CartScreen> {
               ),
             ),
           ),
-          _qtyButton(Icons.add, () => _increment(item)),
+          _qtyButton(
+            Icons.add,
+            item.isMaxQuantity ? null : () => _increment(item),
+            disabled: item.isMaxQuantity,
+          ),
         ],
       ),
     );
   }
 
-  Widget _qtyButton(IconData icon, VoidCallback onTap) {
+  Widget _qtyButton(IconData icon, VoidCallback? onTap, {bool disabled = false}) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        width: 28, height: 28,
+        width: 28,
+        height: 28,
         alignment: Alignment.center,
-        child: Icon(icon, size: 16, color: AppColors.primary),
+        child: Icon(
+          icon,
+          size: 16,
+          color: disabled ? AppColors.textTertiary : AppColors.primary,
+        ),
       ),
     );
   }
@@ -440,270 +346,132 @@ class _CartScreenState extends State<CartScreen> {
     return GestureDetector(
       onTap: () => _confirmRemove(item),
       child: Container(
-        width: 28, height: 28,
+        width: 28,
+        height: 28,
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(8),
           border: Border.all(color: AppColors.border, width: 0.5),
         ),
-        child: const Icon(Icons.delete_outline_rounded,
-            size: 15, color: AppColors.textTertiary),
+        child: const Icon(Icons.delete_outline_rounded, size: 15, color: AppColors.textTertiary),
       ),
     );
   }
-
-  // ── Coupon ──
-  Widget _buildCouponSection() {
-    return Container(
-      padding: const EdgeInsets.all(AppColors.s16),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.border, width: 0.5),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Icon(Icons.local_offer_outlined,
-                  size: 14, color: AppColors.textSecondary),
-              const SizedBox(width: 4),
-              Text('MÃ GIẢM GIÁ', style: AppTextStyles.label()),
-            ],
-          ),
-          const SizedBox(height: AppColors.s8),
-          Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  controller: _couponController,
-                  enabled: !_couponApplied,
-                  style: AppTextStyles.body(color: AppColors.textPrimary),
-                  textCapitalization: TextCapitalization.characters,
-                  decoration: InputDecoration(
-                    hintText: 'Nhập mã của bạn',
-                    suffixIcon: _couponApplied
-                        ? const Icon(Icons.check_circle_outline,
-                            color: AppColors.success, size: 18)
-                        : null,
-                    contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 14, vertical: 10),
-                  ),
-                ),
-              ),
-              const SizedBox(width: AppColors.s8),
-              SizedBox(
-                height: 44,
-                child: _couponApplied
-                    ? OutlinedButton(
-                        onPressed: () => setState(() {
-                          _couponApplied = false;
-                          _discountAmount = 0;
-                          _couponController.clear();
-                        }),
-                        style: OutlinedButton.styleFrom(
-                          minimumSize: const Size(80, 44),
-                        ),
-                        child: const Text('Hủy'),
-                      )
-                    : ElevatedButton(
-                        onPressed: _applyCoupon,
-                        style: ElevatedButton.styleFrom(
-                          minimumSize: const Size(80, 44),
-                        ),
-                        child: const Text('Áp dụng'),
-                      ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
   // ── Order Summary ──
-  Widget _buildOrderSummary() {
-    return Container(
-      padding: const EdgeInsets.all(AppColors.s16),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.border, width: 0.5),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('Tóm tắt đơn hàng', style: AppTextStyles.heading()),
-          const SizedBox(height: AppColors.s12),
-          _summaryRow(
-              'Tạm tính ($_totalQuantity sp)', _formatPrice(_subtotal)),
-          _summaryRow(
-            'Phí vận chuyển',
-            _isFreeShipping ? 'Miễn phí' : _formatPrice(_shippingFee),
-            valueColor: _isFreeShipping ? AppColors.success : null,
-          ),
-          if (_discountAmount > 0)
-            _summaryRow(
-              'Giảm giá',
-              '−${_formatPrice(_discountAmount)}',
-              valueColor: AppColors.error,
-            ),
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: AppColors.s12),
-            child: Divider(color: AppColors.border, thickness: 0.5, height: 0),
-          ),
-          Row(
-            children: [
-              Text('Tổng cộng', style: AppTextStyles.heading()),
-              const Spacer(),
-              Text(
-                _formatPrice(_total),
-                style: AppTextStyles.display(color: AppColors.primary),
-              ),
-            ],
-          ),
-          if (!_isFreeShipping) ...[
-            const SizedBox(height: AppColors.s8),
-            Container(
-              padding: const EdgeInsets.symmetric(
-                  horizontal: 10, vertical: 6),
-              decoration: BoxDecoration(
-                color: AppColors.accentTint,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.local_shipping_outlined,
-                      size: 14, color: AppColors.accentGold),
-                  const SizedBox(width: 6),
-                  Text(
-                    'Thêm ${_formatPrice(_shippingThreshold - _subtotal)} để được miễn phí ship!',
-                    style: AppTextStyles.caption(color: AppColors.accentGold)
-                        .copyWith(fontWeight: FontWeight.w600),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
+Widget _buildOrderSummary(CartState cart) {
+  final subtotal = cart.items.fold<double>(
+    0,
+    (sum, item) => sum + (item.price * item.quantity),
+  );
 
-  Widget _summaryRow(String label, String value, {Color? valueColor}) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 5),
-      child: Row(
-        children: [
-          Text(label, style: AppTextStyles.body()),
-          const Spacer(),
-          Text(
-            value,
-            style: AppTextStyles.body(
-              color: valueColor ?? AppColors.textPrimary,
-            ).copyWith(fontWeight: FontWeight.w600),
-          ),
-        ],
-      ),
-    );
-  }
+  final originalTotal = cart.items.fold<double>(
+    0,
+    (sum, item) =>
+        sum + ((item.hasDiscount ? item.originalPrice! : item.price) * item.quantity),
+  );
 
-  // ── Trust Badges ──
-  Widget _buildTrustBadges() {
-    return Row(
+  final discount = originalTotal - subtotal;
+
+  return Container(
+    margin: const EdgeInsets.fromLTRB(AppColors.s16, 0, AppColors.s16, AppColors.s8),
+    padding: const EdgeInsets.all(AppColors.s16),
+    decoration: BoxDecoration(
+      color: AppColors.surface,
+      borderRadius: BorderRadius.circular(16),
+      border: Border.all(color: AppColors.border, width: 0.5),
+    ),
+    child: Column(
       children: [
-        _trustBadge(Icons.shield_outlined, 'Thanh toán\nbảo mật'),
-        const SizedBox(width: AppColors.s8),
-        _trustBadge(Icons.local_shipping_outlined, 'Giao hàng\n2–3 ngày'),
-        const SizedBox(width: AppColors.s8),
-        _trustBadge(Icons.refresh_outlined, 'Đổi trả\n30 ngày'),
-      ],
-    );
-  }
-
-  Widget _trustBadge(IconData icon, String label) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.symmetric(
-            horizontal: 8, vertical: AppColors.s8),
-        decoration: BoxDecoration(
-          color: AppColors.primarySubtle,
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: Row(
-          children: [
-            Icon(icon, size: 16, color: AppColors.primary),
-            const SizedBox(width: 6),
-            Expanded(
-              child: Text(
-                label,
-                style: AppTextStyles.caption(color: AppColors.primaryDark)
-                    .copyWith(fontWeight: FontWeight.w600),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // ── Bottom Bar ──
-  Widget _buildBottomBar() {
-    return Container(
-      decoration:const BoxDecoration(
-        color: AppColors.surface,
-        border: Border(
-          top: BorderSide(color: AppColors.border, width: 0.5),
-        ),
-      ),
-      padding: EdgeInsets.fromLTRB(
-        AppColors.s16,
-        AppColors.s12,
-        AppColors.s16,
-        AppColors.s16 + MediaQuery.of(context).padding.bottom,
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          ElevatedButton.icon(
-            onPressed: _items.isEmpty ? null : _goToCheckout,
-            icon: const Icon(Icons.lock_outline_rounded, size: 18),
-            label: const Text('Tiến hành thanh toán'),
-          ),
-          const SizedBox(height: AppColors.s8),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: ['MOMO', 'VNPAY', 'COD', 'VISA']
-                .map((m) => _paymentChip(m))
-                .toList(),
+        _summaryRow('Tạm tính', _formatPrice(originalTotal)),
+        if (discount > 0) ...[
+          const SizedBox(height: 8),
+          _summaryRow(
+            'Giảm giá',
+            '-${_formatPrice(discount)}',
+            valueColor: AppColors.error,
           ),
         ],
-      ),
-    );
-  }
+        const SizedBox(height: 12),
+        const Divider(height: 1, color: AppColors.border),
+        const SizedBox(height: 12),
+        _summaryRow(
+          'Tổng cộng',
+          _formatPrice(subtotal),
+          isTotal: true,
+        ),
+      ],
+    ),
+  );
+}
 
-  Widget _paymentChip(String label) {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 3),
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(
-        color: AppColors.background,
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: AppColors.border, width: 0.5),
-      ),
-      child: Text(
+Widget _summaryRow(
+  String label,
+  String value, {
+  bool isTotal = false,
+  Color? valueColor,
+}) {
+  return Row(
+    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    children: [
+      Text(
         label,
-        style: AppTextStyles.label().copyWith(letterSpacing: 0.3),
+        style: isTotal
+            ? AppTextStyles.title()
+            : AppTextStyles.body(color: AppColors.textSecondary),
       ),
-    );
-  }
+      Text(
+        value,
+        style: isTotal
+            ? AppTextStyles.title(color: AppColors.primary).copyWith(fontWeight: FontWeight.w700)
+            : AppTextStyles.body(color: valueColor ?? AppColors.textPrimary),
+      ),
+    ],
+  );
+}
+  // ── Bottom Bar ──
+  Widget _buildBottomBar(CartState cart) {
+  return Container(
+    decoration: const BoxDecoration(
+      color: AppColors.surface,
+      border: Border(
+        top: BorderSide(
+          color: AppColors.border,
+          width: .5,
+        ),
+      ),
+    ),
+    padding: EdgeInsets.fromLTRB(
+      0,
+      AppColors.s12,
+      0,
+      AppColors.s16 + MediaQuery.of(context).padding.bottom,
+    ),
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _buildOrderSummary(cart), 
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: AppColors.s16),
+          child: SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: cart.isEmpty ? null : _goToCheckout,
+              icon: const Icon(Icons.arrow_forward_rounded),
+              label: const Text("Tiến hành thanh toán"),
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
 
   // ── Helper ──
   String _formatPrice(double price) {
     final formatted = price.toInt().toString().replaceAllMapped(
-      RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
-      (m) => '${m[1]}.',
-    );
+          RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
+          (m) => '${m[1]}.',
+        );
     return '$formatted₫';
   }
 }
