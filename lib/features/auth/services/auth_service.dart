@@ -3,7 +3,7 @@ import '../../../../core/network/api_client.dart';
 import '../../../../core/network/api_endpoints.dart';
 import '../../../../core/network/safe_call.dart';
 import '../../../../core/network/token_storage.dart';
-import '../models/auth_models.dart';
+import '../data/models/auth_models.dart';
 
 class AuthService {
   final Dio _dio = ApiClient.instance.dio;

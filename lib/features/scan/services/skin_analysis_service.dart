@@ -29,7 +29,6 @@ class SkinAnalysisService {
         final formData = FormData.fromMap({
           'image': await MultipartFile.fromFile(imagePath, filename: fileName),
         });
-
         final response = await _dio.post(
           ApiEndpoints.skinAnalysisAnalyze,
           data: formData,

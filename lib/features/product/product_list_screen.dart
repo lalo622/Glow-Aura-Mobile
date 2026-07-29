@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:glow_aura/core/theme/app_theme.dart';
 import 'package:glow_aura/shared/widgets/main_scaffold.dart';
-import 'models/product_model.dart';
+import 'data/models/product_model.dart';
 import 'product_viewmodel.dart';
 import 'package:glow_aura/shared/widgets/product_image.dart';
 

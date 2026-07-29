@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:glow_aura/core/theme/app_theme.dart';
-import 'package:glow_aura/features/product/models/product_model.dart';
+import 'package:glow_aura/features/product/data/models/product_model.dart';
 import 'package:glow_aura/shared/widgets/product_image.dart';
 
 enum ProductCardMode { horizontal, grid }

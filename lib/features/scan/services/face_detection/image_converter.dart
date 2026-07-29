@@ -1,4 +1,3 @@
-import 'dart:typed_data';
 import 'package:camera/camera.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -79,7 +78,7 @@ class ImageConverter {
     return nv21;
   }
 
-  /// Lấy mẫu độ sáng trung bình từ Y-plane (lấy mỗi 50 byte để nhanh).
+  /// Lấy mẫu độ sáng trung bình từ Y-plane .
   static double calculateLuminance(CameraImage image) {
     final yPlane = image.planes.first.bytes;
     if (yPlane.isEmpty) return 0;

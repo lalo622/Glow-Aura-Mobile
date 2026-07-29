@@ -1,5 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'models/product_model.dart';
+import 'data/models/product_model.dart';
 import 'services/product_service.dart';
 
 // ─── State ────────────────────────────────────────────────────────────────────

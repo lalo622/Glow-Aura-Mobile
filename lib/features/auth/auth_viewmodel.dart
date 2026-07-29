@@ -1,5 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'models/auth_models.dart';
+import 'data/models/auth_models.dart';
 import 'services/auth_service.dart';
 
 // ─── Entity ───────────────────────────────────────────────────────────────────

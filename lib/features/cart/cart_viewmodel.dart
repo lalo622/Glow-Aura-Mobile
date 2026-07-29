@@ -1,5 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../product/models/product_model.dart';
+import '../product/data/models/product_model.dart';
 import 'data/models/cart_item_model.dart';
 import 'services/cart_service.dart';
 

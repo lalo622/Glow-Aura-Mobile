@@ -2,9 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:glow_aura/core/theme/app_theme.dart';
-import 'models/product_model.dart';
+import 'data/models/product_model.dart';
 import 'product_viewmodel.dart';
 import 'package:glow_aura/shared/widgets/product_image.dart';
+import 'package:glow_aura/features/cart/cart_viewmodel.dart';
 
 
 class ProductDetailScreen extends ConsumerStatefulWidget {
@@ -301,30 +302,41 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
   }
 
   Widget _buildBottomBar(ProductModel product) {
-    final inStock = product.stockQuantity > 0;
-    return Container(
-      padding: EdgeInsets.fromLTRB(AppColors.s16, AppColors.s12,
-          AppColors.s16, AppColors.s16 + MediaQuery.of(context).padding.bottom),
-      decoration: const BoxDecoration(
-        color: AppColors.surface,
-        border: Border(top: BorderSide(color: AppColors.border)),
-      ),
-      child: Row(
-        children: [
-          _buildQtyControl(product),
-          const SizedBox(width: AppColors.s12),
-          Expanded(
-            child: ElevatedButton.icon(
-              onPressed: inStock ? () => _addToCart(product) : null,
-              icon: const Icon(Icons.shopping_bag_outlined, size: 18),
-              label: const Text('Thêm vào giỏ'),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+  final inStock = product.stockQuantity > 0;
+  final isAdding = ref.watch(_isAddingToCartProvider);
 
+  return Container(
+    padding: EdgeInsets.fromLTRB(AppColors.s16, AppColors.s12,
+        AppColors.s16, AppColors.s16 + MediaQuery.of(context).padding.bottom),
+    decoration: const BoxDecoration(
+      color: AppColors.surface,
+      border: Border(top: BorderSide(color: AppColors.border)),
+    ),
+    child: Row(
+      children: [
+        _buildQtyControl(product),
+        const SizedBox(width: AppColors.s12),
+        Expanded(
+          child: ElevatedButton.icon(
+            onPressed: inStock && !isAdding ? () => _addToCart(product) : null,
+            icon: isAdding
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
+                  )
+                : const Icon(Icons.shopping_bag_outlined, size: 18),
+            label: Text(isAdding ? 'Đang thêm...' : 'Thêm vào giỏ'),
+          ),
+        ),
+      ],
+    ),
+  );
+}
+  
   Widget _buildQtyControl(ProductModel product) {
     return Container(
       decoration: BoxDecoration(
@@ -352,18 +364,101 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
     );
   }
 
-  void _addToCart(ProductModel product) {
+  // Provider tạm để track loading state của riêng nút này (đặt ngoài class, cuối file)
+final _isAddingToCartProvider = StateProvider<bool>((ref) => false);
+
+Future<void> _addToCart(ProductModel product) async {
+  ref.read(_isAddingToCartProvider.notifier).state = true;
+
+  final success = await ref
+      .read(cartViewModelProvider.notifier)
+      .addToCart(product, quantity: _quantity);
+
+  ref.read(_isAddingToCartProvider.notifier).state = false;
+
+  if (!mounted) return;
+
+  if (success) {
+    _showAddedToCartSnackBar(product);
+  } else {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('Đã thêm $_quantity "${product.name}" vào giỏ hàng',
-            style: AppTextStyles.body(color: Colors.white)),
-        backgroundColor: AppColors.success,
+        content: Text(
+          'Có lỗi xảy ra, vui lòng thử lại',
+          style: AppTextStyles.body(color: Colors.white),
+        ),
+        backgroundColor: AppColors.error,
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         margin: const EdgeInsets.all(AppColors.s16),
       ),
     );
   }
+}
+
+void _showAddedToCartSnackBar(ProductModel product) {
+  ScaffoldMessenger.of(context).hideCurrentSnackBar();
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(
+      duration: const Duration(seconds: 3),
+      behavior: SnackBarBehavior.floating,
+      backgroundColor: AppColors.textPrimary,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      margin: const EdgeInsets.all(AppColors.s16),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      content: Row(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            clipBehavior: Clip.antiAlias,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(10),
+              color: Colors.white.withValues(alpha: 0.1),
+            ),
+            child: ProductImageWidget(
+              imageUrl: product.imageUrl,
+              width: 40,
+              height: 40,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.check_circle, size: 15, color: AppColors.success),
+                    const SizedBox(width: 5),
+                    Text(
+                      'Đã thêm vào giỏ',
+                      style: AppTextStyles.caption(color: Colors.white)
+                          .copyWith(fontWeight: FontWeight.w600),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  '$_quantity × ${product.name}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTextStyles.caption(color: Colors.white70),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+      action: SnackBarAction(
+        label: 'Xem giỏ',
+        textColor: AppColors.primary,
+        onPressed: () => context.go('/cart'),
+      ),
+    ),
+  );
+}
 
   String _formatPrice(double price) {
     final formatted = price.toInt().toString().replaceAllMapped(
@@ -400,5 +495,7 @@ class _ErrorView extends StatelessWidget {
         ),
       ),
     );
+    
   }
 }
+

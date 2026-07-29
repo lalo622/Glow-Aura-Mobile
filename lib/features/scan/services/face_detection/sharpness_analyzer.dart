@@ -73,7 +73,7 @@ class SharpnessAnalyzer {
     final right = roi.right.clamp(left + 1, width - 2).toInt();
     final bottom = roi.bottom.clamp(top + 1, height - 2).toInt();
 
-    if (right <= left || bottom <= top) return 0.0;
+  if (right <= left || bottom <= top) return 0.0;
 
     const step = roiStride;
 

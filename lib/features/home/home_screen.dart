@@ -10,7 +10,7 @@ import 'package:glow_aura/shared/widgets/insight_card.dart';
 import 'package:glow_aura/shared/widgets/premium_product_card.dart';
 import 'package:glow_aura/features/auth/auth_viewmodel.dart';
 import 'package:glow_aura/features/home/widgets/home_hero.dart';
-import 'package:glow_aura/features/product/models/product_model.dart';
+import 'package:glow_aura/features/product/data/models/product_model.dart';
 import 'package:glow_aura/features/product/product_viewmodel.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {

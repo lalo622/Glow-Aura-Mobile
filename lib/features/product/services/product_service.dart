@@ -2,7 +2,7 @@ import 'package:dio/dio.dart';
 import '../../../../core/network/api_client.dart';
 import '../../../../core/network/api_endpoints.dart';
 import '../../../../core/network/safe_call.dart';
-import '../models/product_model.dart';
+import '../data/models/product_model.dart';
 
 class ProductService {
   final Dio _dio = ApiClient.instance.dio;
