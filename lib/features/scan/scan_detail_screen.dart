@@ -19,7 +19,7 @@ class ScanDetailScreen extends StatelessWidget {
     this.isFrontCamera = true,
   });
 
-  // Mock tạm 
+  // Mock 
   static const _zones = [
     _ZoneData(
       number: '1',
@@ -91,7 +91,7 @@ class ScanDetailScreen extends StatelessWidget {
               ),
               const SizedBox(height: AppColors.s24),
 
-              // ── Deep analysis (mock) ────────
+              // ── Deep analysis  ────────
               Text('Phân tích chuyên sâu', style: AppTextStyles.heading()),
               const SizedBox(height: AppColors.s12),
               ..._zones.map((z) => Padding(
@@ -155,7 +155,7 @@ class _HeaderCard extends StatelessWidget {
                         padding: const EdgeInsets.symmetric(
                             horizontal: 6, vertical: 2),
                         decoration: BoxDecoration(
-                          color: AppColors.accentGold.withOpacity(0.15),
+                          color: AppColors.accentGold.withValues(alpha: 0.15),
                           borderRadius: BorderRadius.circular(4),
                         ),
                         child: Text('DEMO',
@@ -262,7 +262,7 @@ class _StatsRow extends StatelessWidget {
               padding: const EdgeInsets.symmetric(
                   horizontal: AppColors.s12, vertical: AppColors.s4),
               decoration: BoxDecoration(
-                color: _severityColor(summary.severity).withOpacity(0.12),
+                color: _severityColor(summary.severity).withValues(alpha: .12),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Text(
@@ -335,8 +335,6 @@ class _FaceMapWithDetections extends StatefulWidget {
   final String imagePath;
   final List<AcneDetection> detections;
 
-  /// True nếu ảnh được chụp bằng camera trước (selfie) — dùng để lật lại
-  /// tọa độ bbox cho khớp với ảnh đã bị mirror khi lưu.
   final bool isFrontCamera;
 
   const _FaceMapWithDetections({
@@ -455,7 +453,7 @@ class _FaceMapWithDetectionsState extends State<_FaceMapWithDetections> {
                                 borderRadius: BorderRadius.circular(4),
                                 color: _selectedId == d.id
                                     ? _colorForClass(d.className)
-                                        .withOpacity(0.15)
+                                        .withValues(alpha: 0.15)
                                     : Colors.transparent,
                               ),
                             ),
@@ -477,10 +475,8 @@ class _FaceMapWithDetectionsState extends State<_FaceMapWithDetections> {
     );
   }
 
-  // Camera trước (selfie) thường lưu ảnh đã bị lật ngang (mirror) để giống
-  // như soi gương, nhưng model AI lại tính bbox trên ảnh gốc CHƯA lật.
-  // Nếu đúng vậy, phải lật lại tọa độ x để khung khớp đúng vị trí trên ảnh
-  // đã lật. Nếu chụp bằng camera sau thì không cần lật, giữ nguyên tọa độ.
+  // Camera trước (selfie) thường lưu ảnh đã bị lật ngang  để giống
+  // như soi gương, nhưng model AI lại tính bbox trên ảnh gốc chưa lật.
   AcneBoundingBox _flippedBBox(AcneBoundingBox bbox) {
     if (!widget.isFrontCamera || _naturalSize == null) return bbox;
     final w = _naturalSize!.width;
@@ -592,7 +588,7 @@ class _FaceMapWithDetectionsState extends State<_FaceMapWithDetections> {
   }
 }
 
-// ── Zone card (mock — chờ BE tích hợp RAG để trả dữ liệu theo vùng mặt) ───────
+// ── Zone card (mock ) ───────
 class _ZoneCard extends StatelessWidget {
   final _ZoneData data;
   const _ZoneCard({required this.data});

@@ -3,7 +3,7 @@ import 'dart:io';
 import 'package:camera/camera.dart';
 import 'package:flutter/foundation.dart';
 import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
-
+import 'package:image/image.dart' as img;
 import 'face_detection/face_detection_models.dart';
 import 'face_detection/face_frame_analyzer.dart';
 import 'face_detection/face_window_smoother.dart';
@@ -134,56 +134,50 @@ class CameraService {
   }
 
   Future<XFile?> takeBurstPicture({int count = 3}) async {
-    if (!isInitialized) return null;
+  if (!isInitialized) return null;
 
-    try {
-      await _controller!.stopImageStream();
+  try {
+    await _controller!.stopImageStream();
 
-      final candidates = <XFile>[];
-      for (int i = 0; i < count; i++) {
-        final file = await _controller!.takePicture();
-        candidates.add(file);
-        if (i < count - 1) {
-          await Future.delayed(const Duration(milliseconds: 120));
-        }
+    final candidates = <XFile>[];
+    for (int i = 0; i < count; i++) {
+      final file = await _controller!.takePicture();
+      candidates.add(file);
+      if (i < count - 1) {
+        await Future.delayed(const Duration(milliseconds: 120));
       }
-
-      XFile? bestFile;
-      double bestScore = -1;
-
-      for (final file in candidates) {
-        final bytes = await file.readAsBytes();
-        final score = await compute(computeJpegSharpness, bytes);
-        debugPrint(
-            '[CameraService] Burst frame ${file.path} sharpness=$score');
-        if (score > bestScore) {
-          bestScore = score;
-          bestFile = file;
-        }
-      }
-
-      // Dọn các frame không được chọn.
-      for (final file in candidates) {
-        if (file.path != bestFile?.path) {
-          try {
-            await File(file.path).delete();
-          } catch (_) {}
-        }
-      }
-
-      if (bestFile == null) return null;
-
-      final isValid = await _validateCapturedImage(bestFile);
-      if (!isValid) return null;
-
-      debugPrint(
-          '[CameraService] Chọn frame nét nhất: ${bestFile.path} (score=$bestScore)');
-      return bestFile;
-    } catch (e) {
-      debugPrint('takeBurstPicture error: $e');
-      return null;
     }
+
+    XFile? bestFile;
+    double bestScore = -1;
+
+    for (final file in candidates) {
+      final bytes = await file.readAsBytes();
+      final score = await compute(computeJpegSharpness, bytes);
+      if (score > bestScore) {
+        bestScore = score;
+        bestFile = file;
+      }
+    }
+
+    for (final file in candidates) {
+      if (file.path != bestFile?.path) {
+        try {
+          await File(file.path).delete();
+        } catch (_) {}
+      }
+    }
+
+    if (bestFile == null) return null;
+    await _flipImageHorizontally(bestFile.path);
+    final isValid = await _validateCapturedImage(bestFile);
+    if (!isValid) return null;
+
+    return bestFile;
+  } catch (e) {
+    return null;
   }
+}
 
   Future<bool> _validateCapturedImage(XFile file) async {
     try {
@@ -242,5 +236,19 @@ class CameraService {
     _faceDetector = null;
     if (!_rawController.isClosed) _rawController.close();
     if (!_smoothedController.isClosed) _smoothedController.close();
+  }
+  Future<void> _flipImageHorizontally(String path) async {
+  final file = File(path);
+
+  final bytes = await file.readAsBytes();
+  final image = img.decodeImage(bytes);
+
+  if (image == null) return;
+
+  img.flipHorizontal(image);
+
+  final jpg = img.encodeJpg(image, quality: 95);
+
+  await file.writeAsBytes(jpg, flush: true);
   }
 }
