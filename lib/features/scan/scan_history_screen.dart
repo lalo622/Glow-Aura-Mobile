@@ -3,8 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:glow_aura/core/theme/app_theme.dart';
 import 'package:glow_aura/shared/widgets/main_scaffold.dart';
-import 'package:glow_aura/features/scan/data/models/skin_analysis_history.dart';
 import 'package:glow_aura/features/scan/providers/skin_history_provider.dart';
+import 'package:glow_aura/features/scan/widgets/history/history_all_tab.dart';
+import 'package:glow_aura/features/scan/widgets/history/history_empty_state.dart';
 
 class HistoryScreen extends ConsumerStatefulWidget {
   const HistoryScreen({super.key});
@@ -17,6 +18,12 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
 
+  // Tháng đang được chọn để xem (dùng chung cho tab Tuần & Tháng)
+  DateTime _selectedMonth =
+      DateTime(DateTime.now().year, DateTime.now().month);
+  // Tuần đang chọn (index trong tháng đã chọn), reset khi đổi tháng
+  int _selectedWeekIndex = 0;
+
   @override
   void initState() {
     super.initState();
@@ -27,6 +34,29 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen>
   void dispose() {
     _tabController.dispose();
     super.dispose();
+  }
+
+  // ── Helpers ─────────────────────────────────────────────────────────────
+
+  List<DateTimeRange> _weeksInMonth(DateTime month) {
+    final daysInMonth = DateTime(month.year, month.month + 1, 0).day;
+    final weeks = <DateTimeRange>[];
+    for (int start = 1; start <= daysInMonth; start += 7) {
+      final end = (start + 6) > daysInMonth ? daysInMonth : start + 6;
+      weeks.add(DateTimeRange(
+        start: DateTime(month.year, month.month, start),
+        end: DateTime(month.year, month.month, end, 23, 59, 59),
+      ));
+    }
+    return weeks;
+  }
+
+  void _changeMonth(int delta) {
+    setState(() {
+      _selectedMonth =
+          DateTime(_selectedMonth.year, _selectedMonth.month + delta);
+      _selectedWeekIndex = 0;
+    });
   }
 
   @override
@@ -91,8 +121,8 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen>
               child: historyAsync.when(
                 loading: () =>
                     const Center(child: CircularProgressIndicator()),
-                error: (err, _) => _ErrorState(
-                  message: 'Không thể tải lịch sử quét',
+                error: (err, _) => HistoryErrorState(
+                  error: err,
                   onRetry: () => ref.invalidate(skinAnalysisHistoryProvider),
                 ),
                 data: (response) {
@@ -100,7 +130,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen>
                     ..sort((a, b) => b.capturedAt.compareTo(a.capturedAt));
 
                   if (items.isEmpty) {
-                    return _EmptyTab(
+                    return HistoryEmptyState(
                       message: 'Chưa có dữ liệu quét nào',
                       onRefresh: () =>
                           ref.refresh(skinAnalysisHistoryProvider.future),
@@ -116,15 +146,21 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen>
                     deltaMap[items[i].sessionId] = delta;
                   }
 
-                  final now = DateTime.now();
-                  final weekAgo = now.subtract(const Duration(days: 7));
-                  final weeklyItems = items
-                      .where((i) => i.capturedAt.isAfter(weekAgo))
-                      .toList();
                   final monthlyItems = items
                       .where((i) =>
-                          i.capturedAt.year == now.year &&
-                          i.capturedAt.month == now.month)
+                          i.capturedAt.year == _selectedMonth.year &&
+                          i.capturedAt.month == _selectedMonth.month)
+                      .toList();
+
+                  final weeksInSelectedMonth = _weeksInMonth(_selectedMonth);
+                  final safeWeekIndex = _selectedWeekIndex.clamp(
+                      0, weeksInSelectedMonth.length - 1);
+                  final selectedWeekRange =
+                      weeksInSelectedMonth[safeWeekIndex];
+                  final weeklyItems = items
+                      .where((i) =>
+                          !i.capturedAt.isBefore(selectedWeekRange.start) &&
+                          !i.capturedAt.isAfter(selectedWeekRange.end))
                       .toList();
 
                   Future<void> onRefresh() =>
@@ -133,27 +169,69 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen>
                   return TabBarView(
                     controller: _tabController,
                     children: [
-                      _AllTab(
+                      // ── Tab Tất cả ─────────────────────────────────────
+                      HistoryAllTab(
                         items: items,
                         deltaMap: deltaMap,
                         onRefresh: onRefresh,
                       ),
-                      weeklyItems.isEmpty
-                          ? _EmptyTab(
-                              message: 'Chưa có dữ liệu hàng tuần',
-                              onRefresh: onRefresh)
-                          : _AllTab(
-                              items: weeklyItems,
-                              deltaMap: deltaMap,
-                              onRefresh: onRefresh),
-                      monthlyItems.isEmpty
-                          ? _EmptyTab(
-                              message: 'Chưa có dữ liệu hàng tháng',
-                              onRefresh: onRefresh)
-                          : _AllTab(
-                              items: monthlyItems,
-                              deltaMap: deltaMap,
-                              onRefresh: onRefresh),
+
+                      // ── Tab Hàng tuần ──────────────────────────────────
+                      Column(
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.all(AppColors.s16),
+                            child: Column(
+                              children: [
+                                _MonthPicker(
+                                  month: _selectedMonth,
+                                  onChange: _changeMonth,
+                                ),
+                                const SizedBox(height: AppColors.s12),
+                                _WeekChips(
+                                  weeks: weeksInSelectedMonth,
+                                  selectedIndex: safeWeekIndex,
+                                  onSelect: (i) =>
+                                      setState(() => _selectedWeekIndex = i),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Expanded(
+                            child: weeklyItems.isEmpty
+                                ? HistoryEmptyState(
+                                    message: 'Không có dữ liệu quét tuần này',
+                                    onRefresh: onRefresh)
+                                : HistoryAllTab(
+                                    items: weeklyItems,
+                                    deltaMap: deltaMap,
+                                    onRefresh: onRefresh),
+                          ),
+                        ],
+                      ),
+
+                      // ── Tab Hàng tháng ─────────────────────────────────
+                      Column(
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.all(AppColors.s16),
+                            child: _MonthPicker(
+                              month: _selectedMonth,
+                              onChange: _changeMonth,
+                            ),
+                          ),
+                          Expanded(
+                            child: monthlyItems.isEmpty
+                                ? HistoryEmptyState(
+                                    message: 'Không có dữ liệu quét tháng này',
+                                    onRefresh: onRefresh)
+                                : HistoryAllTab(
+                                    items: monthlyItems,
+                                    deltaMap: deltaMap,
+                                    onRefresh: onRefresh),
+                          ),
+                        ],
+                      ),
                     ],
                   );
                 },
@@ -166,402 +244,79 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen>
   }
 }
 
-// ── All tab ───────────────────────────────────────────────────────────────────
-class _AllTab extends StatelessWidget {
-  final List<SkinAnalysisHistoryItem> items;
-  final Map<String, int> deltaMap;
-  final Future<void> Function() onRefresh;
-
-  const _AllTab({
-    required this.items,
-    required this.deltaMap,
-    required this.onRefresh,
-  });
-
-  Map<String, List<SkinAnalysisHistoryItem>> _groupByDate() {
-    final map = <String, List<SkinAnalysisHistoryItem>>{};
-    for (final item in items) {
-      final key = _isToday(item.capturedAt)
-          ? 'HÔM NAY'
-          : 'THÁNG ${item.capturedAt.month}, ${item.capturedAt.year}';
-      map.putIfAbsent(key, () => []).add(item);
-    }
-    return map;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final groups = _groupByDate();
-    final avgScore = items.isEmpty
-        ? 0
-        : (items.map((e) => e.overallScore).reduce((a, b) => a + b) /
-                items.length)
-            .round();
-    final lastScan = items.first.capturedAt;
-    final lastScanLabel = _isToday(lastScan)
-        ? 'Hôm nay'
-        : '${lastScan.day}/${lastScan.month}/${lastScan.year}';
-
-    return RefreshIndicator(
-      onRefresh: onRefresh,
-      child: SingleChildScrollView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.all(AppColors.s16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const SizedBox(height: AppColors.s16),
-
-            // ── Stats summary ─────────────────────────────────────────────
-            Row(
-              children: [
-                Expanded(
-                  child: _StatCard(
-                    label: 'ĐIỂM TRUNG BÌNH',
-                    value: '$avgScore',
-                    trailing: const SizedBox.shrink(),
-                  ),
-                ),
-                const SizedBox(width: AppColors.s12),
-                Expanded(
-                  child: _StatCard(
-                    label: 'LẦN QUÉT CUỐI',
-                    value: lastScanLabel,
-                    trailing: const Icon(Icons.check_circle,
-                        size: 16, color: AppColors.success),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: AppColors.s24),
-
-            for (final entry in groups.entries) ...[
-              _GroupLabel(entry.key),
-              const SizedBox(height: AppColors.s8),
-              ...entry.value.map((item) => Padding(
-                    padding: const EdgeInsets.only(bottom: AppColors.s8),
-                    child: _ScanCard(
-                      item: item,
-                      delta: deltaMap[item.sessionId] ?? 0,
-                    ),
-                  )),
-              const SizedBox(height: AppColors.s16),
-            ],
-            const SizedBox(height: 100),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-bool _isToday(DateTime d) {
-  final now = DateTime.now();
-  return d.year == now.year && d.month == now.month && d.day == now.day;
-}
-
-String _formatTime(DateTime d) {
-  final hour = d.hour % 12 == 0 ? 12 : d.hour % 12;
-  final period = d.hour >= 12 ? 'PM' : 'AM';
-  final minute = d.minute.toString().padLeft(2, '0');
-  return '$hour:$minute $period';
-}
-
-String _severityLabel(String severity) {
-  switch (severity.toLowerCase()) {
-    case 'mild':
-      return 'Nhẹ';
-    case 'moderate':
-      return 'Trung bình';
-    case 'severe':
-      return 'Nặng';
-    case 'clear':
-      return 'Sạch mụn';
-    default:
-      return severity;
-  }
-}
-
-Color _severityColor(String severity) {
-  switch (severity.toLowerCase()) {
-    case 'mild':
-      return AppColors.success;
-    case 'moderate':
-      return const Color(0xFFD4A24C);
-    case 'severe':
-      return AppColors.error;
-    case 'clear':
-      return AppColors.primary;
-    default:
-      return AppColors.textTertiary;
-  }
-}
-
-// ── Empty tab ─────────────────────────────────────────────────────────────────
-class _EmptyTab extends StatelessWidget {
-  final String message;
-  final Future<void> Function()? onRefresh;
-  const _EmptyTab({required this.message, this.onRefresh});
-
-  @override
-  Widget build(BuildContext context) {
-    final content = Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(Icons.history, size: 48, color: AppColors.primaryTint),
-          const SizedBox(height: AppColors.s12),
-          Text(message,
-              style: AppTextStyles.body(color: AppColors.textTertiary)),
-        ],
-      ),
-    );
-
-    if (onRefresh == null) return content;
-
-    return RefreshIndicator(
-      onRefresh: onRefresh!,
-      child: ListView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        children: [
-          SizedBox(
-            height: MediaQuery.of(context).size.height * 0.6,
-            child: content,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ── Error state ───────────────────────────────────────────────────────────────
-class _ErrorState extends StatelessWidget {
-  final String message;
-  final VoidCallback onRetry;
-  const _ErrorState({required this.message, required this.onRetry});
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(Icons.error_outline, size: 48, color: AppColors.error),
-          const SizedBox(height: AppColors.s12),
-          Text(message,
-              style: AppTextStyles.body(color: AppColors.textTertiary)),
-          const SizedBox(height: AppColors.s12),
-          TextButton(
-            onPressed: onRetry,
-            child: const Text('Thử lại'),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ── Stat card ─────────────────────────────────────────────────────────────────
-class _StatCard extends StatelessWidget {
-  final String label, value;
-  final Widget trailing;
-
-  const _StatCard({
-    required this.label,
-    required this.value,
-    required this.trailing,
-  });
+// ── Month picker (prev/next) ─────────────────────────────────────────────
+class _MonthPicker extends StatelessWidget {
+  final DateTime month;
+  final ValueChanged<int> onChange; // truyền -1 hoặc +1
+  const _MonthPicker({required this.month, required this.onChange});
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(AppColors.s12),
+      padding: const EdgeInsets.symmetric(
+          horizontal: AppColors.s12, vertical: AppColors.s8),
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: AppColors.border),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(label, style: AppTextStyles.label()),
-          const SizedBox(height: AppColors.s4),
-          Row(
-            children: [
-              Text(value,
-                  style: AppTextStyles.display(color: AppColors.primary)),
-              const SizedBox(width: AppColors.s8),
-              trailing,
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ── Group label ───────────────────────────────────────────────────────────────
-class _GroupLabel extends StatelessWidget {
-  final String text;
-  const _GroupLabel(this.text);
-
-  @override
-  Widget build(BuildContext context) {
-    return Text(text,
-        style: AppTextStyles.label(color: AppColors.textSecondary));
-  }
-}
-
-// ── Scan card (with larger image preview) ──────────────────────────────────────
-class _ScanCard extends StatelessWidget {
-  final SkinAnalysisHistoryItem item;
-  final int delta;
-
-  const _ScanCard({required this.item, required this.delta});
-
-  @override
-  Widget build(BuildContext context) {
-    final deltaPositive = delta >= 0;
-    final hasImage = item.fullImageUrl.isNotEmpty;
-
-    return Container(
-      padding: const EdgeInsets.all(AppColors.s12),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.border),
-      ),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          // ── Ảnh preview lớn ─────────────────────────────────────────
-          ClipRRect(
-            borderRadius: BorderRadius.circular(12),
-            child: SizedBox(
-              width: 88,
-              height: 88,
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  hasImage
-                      ? Image.network(
-                          item.fullImageUrl,
-                          fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) =>
-                              _fallbackImagePlaceholder(),
-                          loadingBuilder: (context, child, progress) {
-                            if (progress == null) return child;
-                            return Container(
-                              color: AppColors.primaryTint.withValues(alpha:0.15),
-                              child: const Center(
-                                child: SizedBox(
-                                  width: 20,
-                                  height: 20,
-                                  child: CircularProgressIndicator(
-                                      strokeWidth: 2),
-                                ),
-                              ),
-                            );
-                          },
-                        )
-                      : _fallbackImagePlaceholder(),
-                  // Badge severity ở góc dưới
-                  Positioned(
-                    left: 6,
-                    bottom: 6,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: _severityColor(item.severity),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Text(
-                        _severityLabel(item.severity),
-                        style: AppTextStyles.caption(color: Colors.white)
-                            .copyWith(fontSize: 10, height: 1),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
+          IconButton(
+            onPressed: () => onChange(-1),
+            icon: const Icon(Icons.chevron_left, size: 20),
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(),
           ),
-          const SizedBox(width: AppColors.s12),
-
-          // ── Nội dung ─────────────────────────────────────────────────
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  item.detectedSkinType.isNotEmpty
-                      ? item.detectedSkinType
-                      : 'Kết quả quét da',
-                  style: AppTextStyles.title(),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: AppColors.s4),
-                Text(
-                  '${_formatTime(item.capturedAt)} • ${item.acneCount} nốt mụn',
-                  style: AppTextStyles.caption(),
-                ),
-                const SizedBox(height: AppColors.s8),
-                Row(
-                  children: [
-                    Text('${item.overallScore}',
-                        style: AppTextStyles.heading(
-                            color: AppColors.textPrimary)),
-                    const SizedBox(width: AppColors.s8),
-                    if (delta != 0)
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: (deltaPositive
-                                  ? AppColors.success
-                                  : AppColors.error)
-                              .withValues(alpha:0.1),
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              deltaPositive
-                                  ? Icons.arrow_upward
-                                  : Icons.arrow_downward,
-                              size: 10,
-                              color: deltaPositive
-                                  ? AppColors.success
-                                  : AppColors.error,
-                            ),
-                            Text('${delta.abs()}',
-                                style: AppTextStyles.caption(
-                                  color: deltaPositive
-                                      ? AppColors.success
-                                      : AppColors.error,
-                                )),
-                          ],
-                        ),
-                      ),
-                  ],
-                ),
-              ],
-            ),
+          Text('Tháng ${month.month}, ${month.year}',
+              style:
+                  AppTextStyles.body().copyWith(fontWeight: FontWeight.w600)),
+          IconButton(
+            onPressed: () => onChange(1),
+            icon: const Icon(Icons.chevron_right, size: 20),
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(),
           ),
         ],
       ),
     );
   }
+}
 
-  Widget _fallbackImagePlaceholder() {
-    return Container(
-      color: AppColors.primaryTint.withValues(alpha:0.15),
-      child: const Center(
-        child: Icon(Icons.face_retouching_natural,
-            size: 32, color: AppColors.primary),
+// ── Week chips trong tháng đã chọn ───────────────────────────────────────
+class _WeekChips extends StatelessWidget {
+  final List<DateTimeRange> weeks;
+  final int selectedIndex;
+  final ValueChanged<int> onSelect;
+  const _WeekChips({
+    required this.weeks,
+    required this.selectedIndex,
+    required this.onSelect,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 36,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: weeks.length,
+        separatorBuilder: (_, __) => const SizedBox(width: AppColors.s8),
+        itemBuilder: (_, i) {
+          final selected = i == selectedIndex;
+          return ChoiceChip(
+            label: Text(
+                'Tuần ${i + 1} (${weeks[i].start.day}-${weeks[i].end.day})'),
+            selected: selected,
+            onSelected: (_) => onSelect(i),
+            selectedColor: AppColors.primary,
+            labelStyle: AppTextStyles.caption(
+                color: selected ? Colors.white : AppColors.textSecondary),
+            backgroundColor: AppColors.surface,
+            side: const BorderSide(color: AppColors.border),
+          );
+        },
       ),
     );
   }
