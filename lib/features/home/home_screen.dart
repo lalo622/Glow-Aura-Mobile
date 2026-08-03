@@ -12,6 +12,7 @@ import 'package:glow_aura/features/auth/auth_viewmodel.dart';
 import 'package:glow_aura/features/home/widgets/home_hero.dart';
 import 'package:glow_aura/features/product/data/models/product_model.dart';
 import 'package:glow_aura/features/product/product_viewmodel.dart';
+import 'package:glow_aura/features/scan/providers/skin_history_provider.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -33,6 +34,21 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final productState = ref.watch(productViewModelProvider);
     final user = ref.watch(authViewModelProvider).user;
     final firstName = user?.fullName.split(' ').last ?? '';
+    final recentScansAsync = ref.watch(recentScansProvider(2));
+    final heroScore = recentScansAsync.maybeWhen(
+    data: (r) => r.items.isNotEmpty ? r.items.first.overallScore : 0,
+    orElse: () => 0,
+  );
+    final heroDelta = recentScansAsync.maybeWhen(
+      data: (r) => r.items.length > 1
+          ? (r.items[0].overallScore - r.items[1].overallScore).toDouble()
+          : 0.0,
+      orElse: () => 0.0,
+    );
+    final hasScanData = recentScansAsync.maybeWhen(
+      data: (r) => r.items.isNotEmpty,
+      orElse: () => false,
+    );
 
     return MainScaffold(
       currentIndex: 0,
@@ -41,7 +57,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            HomeHero(firstName: firstName, score: 85, scoreDelta: 5),
+           HomeHero(
+            firstName: firstName,
+            score: heroScore,
+            scoreDelta: heroDelta,
+            hasData: hasScanData,
+          ),
             const SizedBox(height: 70),
 
             const _EntranceFade(
@@ -270,7 +291,7 @@ class _InsightRow extends StatelessWidget {
     ];
 
     return SizedBox(
-      height: 140,
+      height: 156,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: AppColors.s16),
@@ -301,7 +322,7 @@ class _EditorialPromo extends StatelessWidget {
       onTap: () => context.go('/products'),
       child: Container(
         margin: const EdgeInsets.symmetric(horizontal: AppColors.s16),
-        height: 180,
+        height: 210,
         clipBehavior: Clip.antiAlias,
         decoration: BoxDecoration(borderRadius: BorderRadius.circular(24)),
         child: Stack(

@@ -4,24 +4,18 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:glow_aura/core/theme/app_theme.dart';
 import 'package:glow_aura/shared/widgets/score_ring.dart';
 
-/// Immersive hero block for Home.
-///
-/// Replaces the flat PageView banner. Structure:
-///   - Full-bleed image (or gradient fallback) ~62% of hero height
-///   - Editorial headline + greeting floating over the image
-///   - A "floating" score card that overlaps the image/content boundary,
-///     casting a soft shadow — gives layered depth (Apple Health feel)
-///     instead of a flat banner.
 class HomeHero extends StatelessWidget {
   final String firstName;
   final int score;
   final double scoreDelta;
+  final bool hasData;
 
   const HomeHero({
     super.key,
     required this.firstName,
     required this.score,
     required this.scoreDelta,
+    this.hasData = true,
   });
 
   @override
@@ -132,7 +126,12 @@ class HomeHero extends StatelessWidget {
 class _FloatingScoreCard extends StatelessWidget {
   final int score;
   final double delta;
-  const _FloatingScoreCard({required this.score, required this.delta});
+  final bool hasData;
+  const _FloatingScoreCard({
+    required this.score,
+    required this.delta,
+    this.hasData = true,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -161,33 +160,38 @@ class _FloatingScoreCard extends StatelessWidget {
                 Text('Chỉ số sức khỏe da',
                     style: AppTextStyles.label(color: AppColors.textTertiary)),
                 const SizedBox(height: AppColors.s4),
-                Row(
-                  children: [
-                    Icon(
-                      isUp ? Icons.trending_up : Icons.trending_down,
-                      size: 14,
-                      color: isUp ? AppColors.success : AppColors.error,
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      '${isUp ? '+' : ''}${delta.toStringAsFixed(0)}% so với tuần trước',
-                      style: AppTextStyles.caption(
-                          color: isUp ? AppColors.success : AppColors.error),
-                    ),
-                  ],
-                ),
+                if (!hasData)
+                  Text('Chưa có dữ liệu quét',
+                      style:
+                          AppTextStyles.caption(color: AppColors.textTertiary))
+                else
+                  Row(
+                    children: [
+                      Icon(
+                        isUp ? Icons.trending_up : Icons.trending_down,
+                        size: 14,
+                        color: isUp ? AppColors.success : AppColors.error,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        '${isUp ? '+' : ''}${delta.toStringAsFixed(0)} điểm so với lần quét trước',
+                        style: AppTextStyles.caption(
+                            color: isUp ? AppColors.success : AppColors.error),
+                      ),
+                    ],
+                  ),
                 const SizedBox(height: AppColors.s8),
                 GestureDetector(
-                  onTap: () => context.go('/scan-result'),
-                  child: Text('Xem chi tiết',
+                  onTap: () => hasData
+                      ? context.go('/scan-result')
+                      : context.go('/scan-guide'),
+                  child: Text(hasData ? 'Xem chi tiết' : 'Quét da ngay',
                       style: AppTextStyles.body(color: AppColors.primary)
                           .copyWith(fontWeight: FontWeight.w600)),
                 ),
               ],
             ),
           ),
-          // Scan FAB-style shortcut, secondary to the bottom-nav FAB but
-          // gives immediate access from the hero.
           GestureDetector(
             onTap: () => context.go('/scan-guide'),
             child: Container(

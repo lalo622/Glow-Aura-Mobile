@@ -122,7 +122,7 @@ class _ProductListScreenState extends ConsumerState<ProductListScreen> {
                           gridDelegate:
                               const SliverGridDelegateWithFixedCrossAxisCount(
                             crossAxisCount: 2,
-                            childAspectRatio: 0.72,
+                            childAspectRatio: 0.62,
                             crossAxisSpacing: AppColors.s12,
                             mainAxisSpacing: AppColors.s12,
                           ),
@@ -566,7 +566,7 @@ class _LoadingGrid extends StatelessWidget {
       physics: const NeverScrollableScrollPhysics(),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 2,
-        childAspectRatio: 0.72,
+        childAspectRatio: 0.62,
         crossAxisSpacing: AppColors.s12,
         mainAxisSpacing: AppColors.s12,
       ),
