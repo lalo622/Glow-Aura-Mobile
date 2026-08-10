@@ -1,12 +1,14 @@
-
 class SkinAnalysisResult {
   final String sessionId;
   final String analysisCode;
+  final String imageUrl; 
+  final String detectedSkinType;
   final AcneSummary acneSummary;
   final List<AcneDetection> detections;
   final String advice;
   final List<String> recommendations;
   final List<String> redFlags;
+  final List<RecommendedProduct> recommendedProducts;
   final String disclaimer;
   final int overallScore;
   final String sourceModel;
@@ -15,21 +17,29 @@ class SkinAnalysisResult {
   const SkinAnalysisResult({
     required this.sessionId,
     required this.analysisCode,
+    required this.imageUrl,
+    required this.detectedSkinType,
     required this.acneSummary,
     required this.detections,
     required this.advice,
     required this.recommendations,
     required this.redFlags,
+    required this.recommendedProducts,
     required this.disclaimer,
     required this.overallScore,
     required this.sourceModel,
     required this.isMock,
   });
 
+  /// true nếu RAG không trả được tư vấn (advice rỗng) dù request vẫn thành công.
+  bool get hasAdvice => advice.trim().isNotEmpty;
+
   factory SkinAnalysisResult.fromJson(Map<String, dynamic> json) {
     return SkinAnalysisResult(
       sessionId: json['sessionId'] as String? ?? '',
       analysisCode: json['analysisCode'] as String? ?? '',
+      imageUrl: json['imageUrl'] as String? ?? '',
+      detectedSkinType: json['detectedSkinType'] as String? ?? '',
       acneSummary: AcneSummary.fromJson(
         json['acneSummary'] as Map<String, dynamic>? ?? const {},
       ),
@@ -43,6 +53,10 @@ class SkinAnalysisResult {
       redFlags: (json['redFlags'] as List<dynamic>? ?? const [])
           .map((e) => e as String)
           .toList(),
+      recommendedProducts:
+          (json['recommendedProducts'] as List<dynamic>? ?? const [])
+              .map((e) => RecommendedProduct.fromJson(e as Map<String, dynamic>))
+              .toList(),
       disclaimer: json['disclaimer'] as String? ?? '',
       overallScore: json['overallScore'] as int? ?? 0,
       sourceModel: json['sourceModel'] as String? ?? '',
@@ -53,11 +67,15 @@ class SkinAnalysisResult {
   Map<String, dynamic> toJson() => {
         'sessionId': sessionId,
         'analysisCode': analysisCode,
+        'imageUrl': imageUrl,
+        'detectedSkinType': detectedSkinType,
         'acneSummary': acneSummary.toJson(),
         'detections': detections.map((d) => d.toJson()).toList(),
         'advice': advice,
         'recommendations': recommendations,
         'redFlags': redFlags,
+        'recommendedProducts':
+            recommendedProducts.map((p) => p.toJson()).toList(),
         'disclaimer': disclaimer,
         'overallScore': overallScore,
         'sourceModel': sourceModel,
@@ -158,4 +176,48 @@ class AcneBoundingBox {
 
   double get width => x2 - x1;
   double get height => y2 - y1;
+}
+
+class RecommendedProduct {
+  final String id;
+  final String name;
+  final String brand;
+  final int price;
+  final String imageUrl; 
+  final String category;
+  final String matchReason;
+
+  const RecommendedProduct({
+    required this.id,
+    required this.name,
+    required this.brand,
+    required this.price,
+    required this.imageUrl,
+    required this.category,
+    required this.matchReason,
+  });
+
+  bool get isBase64 => imageUrl.startsWith('data:image');
+
+  factory RecommendedProduct.fromJson(Map<String, dynamic> json) {
+    return RecommendedProduct(
+      id: json['id'] as String? ?? '',
+      name: json['name'] as String? ?? '',
+      brand: json['brand'] as String? ?? '',
+      price: json['price'] as int? ?? 0,
+      imageUrl: json['imageUrl'] as String? ?? '',
+      category: json['category'] as String? ?? '',
+      matchReason: json['matchReason'] as String? ?? '',
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'name': name,
+        'brand': brand,
+        'price': price,
+        'imageUrl': imageUrl,
+        'category': category,
+        'matchReason': matchReason,
+      };
 }

@@ -5,7 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:glow_aura/core/theme/app_theme.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-import 'providers/skin_analysis_controller.dart'; 
+import 'providers/skin_analysis_controller.dart';
 
 class ScanResultScreen extends ConsumerStatefulWidget {
   final String imagePath;
@@ -117,7 +117,7 @@ class _ScanResultScreenState extends ConsumerState<ScanResultScreen> {
                         _ScoreRing(score: result.overallScore),
                         const SizedBox(height: AppColors.s12),
                         Text(
-                          result.overallScore >= 80 
+                          result.overallScore >= 80
                               ? 'Chỉ số Glow Aura của bạn đang ở mức rất tốt'
                               : 'Làn da của bạn cần được chăm sóc kỹ hơn',
                           style: AppTextStyles.body(color: AppColors.primary),
@@ -137,10 +137,17 @@ class _ScanResultScreenState extends ConsumerState<ScanResultScreen> {
                             )),
                         const SizedBox(height: AppColors.s8),
 
-                        _ExpertAdviceCard(adviceText: result.advice),
+                        _ExpertAdviceCard(
+                          advice: result.advice,
+                          disclaimer: result.disclaimer,
+                        ),
                         const SizedBox(height: AppColors.s24),
 
-                        _SyncStatusChip(scanId: widget.scanId, isSynced: true),
+                        _SourceModelChip(
+                          scanId: widget.scanId,
+                          sourceModel: result.sourceModel,
+                          isMock: result.isMock,
+                        ),
                         const SizedBox(height: AppColors.s8),
                       ],
                     ),
@@ -253,14 +260,20 @@ class _CapturedImageCard extends StatelessWidget {
   }
 }
 
-class _SyncStatusChip extends StatelessWidget {
+class _SourceModelChip extends StatelessWidget {
   final int scanId;
-  final bool isSynced;
-  const _SyncStatusChip({required this.scanId, required this.isSynced});
+  final String sourceModel;
+  final bool isMock;
+  const _SourceModelChip({
+    required this.scanId,
+    required this.sourceModel,
+    required this.isMock,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final statusColor = isSynced ? AppColors.success : Colors.orange;
+    final statusColor = isMock ? Colors.orange : AppColors.success;
+    final label = sourceModel.isNotEmpty ? sourceModel : 'unknown';
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
@@ -271,11 +284,13 @@ class _SyncStatusChip extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(isSynced ? Icons.cloud_done_outlined : Icons.cloud_off_outlined,
+          Icon(isMock ? Icons.science_outlined : Icons.verified_outlined,
               size: 14, color: statusColor),
           const SizedBox(width: 6),
           Text(
-            isSynced ? 'Đã đồng bộ AI · Scan #$scanId' : 'Chưa đồng bộ · Scan #$scanId',
+            isMock
+                ? 'Dữ liệu demo · Scan #$scanId'
+                : 'Nguồn: $label · Scan #$scanId',
             style: TextStyle(color: statusColor, fontSize: 11),
           ),
         ],
@@ -379,38 +394,57 @@ class _MetricCard extends StatelessWidget {
 }
 
 class _ExpertAdviceCard extends StatelessWidget {
-  final String adviceText;
-  const _ExpertAdviceCard({required this.adviceText});
+  final String advice;
+  final String disclaimer;
+  const _ExpertAdviceCard({required this.advice, required this.disclaimer});
 
   @override
   Widget build(BuildContext context) {
+    final hasAdvice = advice.trim().isNotEmpty;
+    final text = hasAdvice
+        ? advice
+        : (disclaimer.isNotEmpty
+            ? disclaimer
+            : 'Hệ thống chưa thể đưa ra tư vấn cho lần phân tích này.');
+
     return Container(
       padding: const EdgeInsets.all(AppColors.s16),
       decoration: BoxDecoration(
-        color: AppColors.accentTint,
+        color: hasAdvice ? AppColors.accentTint : AppColors.surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFEDD9B0)),
+        border: Border.all(
+          color: hasAdvice ? const Color(0xFFEDD9B0) : AppColors.border,
+        ),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
             width: 44, height: 44,
-            decoration: const BoxDecoration(
-                color: AppColors.accentGold, shape: BoxShape.circle),
-            child: const Icon(Icons.person_outline, color: Colors.white, size: 24),
+            decoration: BoxDecoration(
+                color: hasAdvice ? AppColors.accentGold : AppColors.textSecondary,
+                shape: BoxShape.circle),
+            child: Icon(
+              hasAdvice ? Icons.person_outline : Icons.info_outline,
+              color: Colors.white,
+              size: 24,
+            ),
           ),
           const SizedBox(width: AppColors.s12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Lời khuyên chuyên gia',
-                    style: AppTextStyles.title(color: AppColors.accentGold)),
+                Text(
+                  hasAdvice ? 'Lời khuyên chuyên gia' : 'Thông báo',
+                  style: AppTextStyles.title(
+                      color: hasAdvice ? AppColors.accentGold : AppColors.textSecondary),
+                ),
                 Text('AI GLOW AURA',
-                    style: AppTextStyles.label(color: AppColors.accentGold)),
+                    style: AppTextStyles.label(
+                        color: hasAdvice ? AppColors.accentGold : AppColors.textSecondary)),
                 const SizedBox(height: AppColors.s8),
-                Text(adviceText, style: AppTextStyles.body()),
+                Text(text, style: AppTextStyles.body()),
               ],
             ),
           ),

@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -8,8 +9,6 @@ import '../../features/scan/data/models/skin_analysis_result.dart';
 class ScanDetailScreen extends StatelessWidget {
   final String imagePath;
   final SkinAnalysisResult result;
-
-
   final bool isFrontCamera;
 
   const ScanDetailScreen({
@@ -18,24 +17,6 @@ class ScanDetailScreen extends StatelessWidget {
     required this.result,
     this.isFrontCamera = true,
   });
-
-  // Mock 
-  static const _zones = [
-    _ZoneData(
-      number: '1',
-      title: 'Vùng chữ T',
-      subtitle: 'Mật độ mụn trung bình',
-      value: 'Giảm 8%',
-      positive: true,
-    ),
-    _ZoneData(
-      number: '2',
-      title: 'Vùng má',
-      subtitle: 'Mật độ thấp',
-      value: 'Giảm 22%',
-      positive: true,
-    ),
-  ];
 
   @override
   Widget build(BuildContext context) {
@@ -91,17 +72,33 @@ class ScanDetailScreen extends StatelessWidget {
               ),
               const SizedBox(height: AppColors.s24),
 
-              // ── Deep analysis  ────────
-              Text('Phân tích chuyên sâu', style: AppTextStyles.heading()),
-              const SizedBox(height: AppColors.s12),
-              ..._zones.map((z) => Padding(
-                    padding: const EdgeInsets.only(bottom: AppColors.s8),
-                    child: _ZoneCard(data: z),
-                  )),
-              const SizedBox(height: AppColors.s16),
+              // ── Khuyến nghị chăm sóc (từ RAG, chỉ hiện khi có data thật) ──
+              if (result.recommendations.isNotEmpty) ...[
+                Text('Khuyến nghị chăm sóc', style: AppTextStyles.heading()),
+                const SizedBox(height: AppColors.s12),
+                _RecommendationList(items: result.recommendations),
+                const SizedBox(height: AppColors.s24),
+              ],
 
-              // ── Expert tip ────────────────────────────────────────────
-              _ExpertTipCard(advice: result.advice),
+              // ── Cảnh báo cần lưu ý (redFlags) ─────────────────────────
+              if (result.redFlags.isNotEmpty) ...[
+                _RedFlagsCard(items: result.redFlags),
+                const SizedBox(height: AppColors.s24),
+              ],
+
+              // ── Sản phẩm gợi ý từ RAG ─────────────────────────────────
+              if (result.recommendedProducts.isNotEmpty) ...[
+                Text('Sản phẩm gợi ý', style: AppTextStyles.heading()),
+                const SizedBox(height: AppColors.s12),
+                _RecommendedProductsList(products: result.recommendedProducts),
+                const SizedBox(height: AppColors.s24),
+              ],
+
+              // ── Expert tip / disclaimer ───────────────────────────────
+              _ExpertTipCard(
+                advice: result.advice,
+                disclaimer: result.disclaimer,
+              ),
               const SizedBox(height: AppColors.s32),
             ],
           ),
@@ -171,9 +168,16 @@ class _HeaderCard extends StatelessWidget {
                     const Icon(Icons.check_circle,
                         size: 12, color: AppColors.primary),
                     const SizedBox(width: 4),
-                    Text('Vừa phân tích xong',
+                    Expanded(
+                      child: Text(
+                        result.detectedSkinType.isNotEmpty
+                            ? 'Loại da: ${result.detectedSkinType}'
+                            : 'Vừa phân tích xong',
                         style: AppTextStyles.caption(
-                            color: AppColors.primary)),
+                            color: AppColors.primary),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
                   ],
                 ),
               ],
@@ -334,7 +338,6 @@ class _StatCard extends StatelessWidget {
 class _FaceMapWithDetections extends StatefulWidget {
   final String imagePath;
   final List<AcneDetection> detections;
-
   final bool isFrontCamera;
 
   const _FaceMapWithDetections({
@@ -475,7 +478,7 @@ class _FaceMapWithDetectionsState extends State<_FaceMapWithDetections> {
     );
   }
 
-  // Camera trước (selfie) thường lưu ảnh đã bị lật ngang  để giống
+  // Camera trước (selfie) thường lưu ảnh đã bị lật ngang để giống
   // như soi gương, nhưng model AI lại tính bbox trên ảnh gốc chưa lật.
   AcneBoundingBox _flippedBBox(AcneBoundingBox bbox) {
     if (!widget.isFrontCamera || _naturalSize == null) return bbox;
@@ -588,10 +591,10 @@ class _FaceMapWithDetectionsState extends State<_FaceMapWithDetections> {
   }
 }
 
-// ── Zone card (mock ) ───────
-class _ZoneCard extends StatelessWidget {
-  final _ZoneData data;
-  const _ZoneCard({required this.data});
+// ── Khuyến nghị chăm sóc (recommendations, data thật từ RAG) ──────────────────
+class _RecommendationList extends StatelessWidget {
+  final List<String> items;
+  const _RecommendationList({required this.items});
 
   @override
   Widget build(BuildContext context) {
@@ -602,75 +605,183 @@ class _ZoneCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: AppColors.border),
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            width: 28, height: 28,
-            decoration: const BoxDecoration(
-              color: AppColors.primaryTint,
-              shape: BoxShape.circle,
+          for (int i = 0; i < items.length; i++)
+            Padding(
+              padding: EdgeInsets.only(
+                  bottom: i == items.length - 1 ? 0 : AppColors.s8),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Icon(Icons.check_circle_outline,
+                      size: 18, color: AppColors.primary),
+                  const SizedBox(width: AppColors.s8),
+                  Expanded(
+                    child: Text(items[i],
+                        style: AppTextStyles.body(color: AppColors.textPrimary)),
+                  ),
+                ],
+              ),
             ),
-            child: Center(
-              child: Text(data.number,
-                  style: AppTextStyles.body(color: AppColors.primary)
-                      .copyWith(fontWeight: FontWeight.w600)),
-            ),
-          ),
-          const SizedBox(width: AppColors.s12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(data.title, style: AppTextStyles.title()),
-                const SizedBox(height: AppColors.s4),
-                Text(data.subtitle, style: AppTextStyles.caption()),
-              ],
-            ),
-          ),
-          Text(data.value,
-              style: AppTextStyles.body(
-                      color: data.positive
-                          ? AppColors.success
-                          : AppColors.error)
-                  .copyWith(fontWeight: FontWeight.w600)),
         ],
       ),
     );
   }
 }
 
-// ── Expert tip ────────────────────────────────────────────────────────────────
-class _ExpertTipCard extends StatelessWidget {
-  final String advice;
-  const _ExpertTipCard({required this.advice});
+// ── Cảnh báo cần lưu ý (redFlags, data thật từ RAG) ────────────────────────────
+class _RedFlagsCard extends StatelessWidget {
+  final List<String> items;
+  const _RedFlagsCard({required this.items});
 
   @override
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(AppColors.s16),
       decoration: BoxDecoration(
-        color: AppColors.primary,
-        borderRadius: BorderRadius.circular(16),
+        color: AppColors.error.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.error.withValues(alpha: 0.25)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.warning_amber_rounded,
+                  size: 18, color: AppColors.error),
+              const SizedBox(width: AppColors.s8),
+              Text('Lưu ý cần theo dõi',
+                  style: AppTextStyles.title(color: AppColors.error)),
+            ],
+          ),
+          const SizedBox(height: AppColors.s8),
+          for (final item in items)
+            Padding(
+              padding: const EdgeInsets.only(top: AppColors.s4),
+              child: Text('• $item',
+                  style: AppTextStyles.body(color: AppColors.textPrimary)),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Sản phẩm gợi ý từ RAG ───────────────────────────────────────────────────
+class _RecommendedProductsList extends StatelessWidget {
+  final List<RecommendedProduct> products;
+  const _RecommendedProductsList({required this.products});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        for (int i = 0; i < products.length; i++)
+          Padding(
+            padding: EdgeInsets.only(
+                bottom: i == products.length - 1 ? 0 : AppColors.s12),
+            child: _ProductCard(product: products[i]),
+          ),
+      ],
+    );
+  }
+}
+
+class _ProductCard extends StatelessWidget {
+  final RecommendedProduct product;
+  const _ProductCard({required this.product});
+
+  Widget _buildImage() {
+    if (product.imageUrl.isEmpty) {
+      return Container(
+        width: 64, height: 64,
+        color: AppColors.primaryTint,
+        child: const Icon(Icons.image_not_supported_outlined,
+            color: AppColors.textSecondary),
+      );
+    }
+    if (product.isBase64) {
+      try {
+        final base64Part = product.imageUrl.split(',').last;
+        final bytes = base64Decode(base64Part);
+        return Image.memory(bytes, width: 64, height: 64, fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) => Container(
+                  width: 64, height: 64,
+                  color: AppColors.primaryTint,
+                  child: const Icon(Icons.broken_image_outlined,
+                      color: AppColors.textSecondary),
+                ));
+      } catch (_) {
+        return Container(
+          width: 64, height: 64,
+          color: AppColors.primaryTint,
+          child: const Icon(Icons.broken_image_outlined,
+              color: AppColors.textSecondary),
+        );
+      }
+    }
+    // fallback: URL thường
+    return Image.network(product.imageUrl, width: 64, height: 64,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => Container(
+              width: 64, height: 64,
+              color: AppColors.primaryTint,
+              child: const Icon(Icons.broken_image_outlined,
+                  color: AppColors.textSecondary),
+            ));
+  }
+
+  String _formatPrice(int price) {
+    final s = price.toString();
+    final buffer = StringBuffer();
+    for (int i = 0; i < s.length; i++) {
+      final posFromEnd = s.length - i;
+      buffer.write(s[i]);
+      if (posFromEnd > 1 && posFromEnd % 3 == 1) buffer.write('.');
+    }
+    return '${buffer}đ';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(AppColors.s12),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.border),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.lightbulb_outline,
-              color: Colors.white70, size: 20),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: _buildImage(),
+          ),
           const SizedBox(width: AppColors.s12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('LỜI KHUYÊN CHUYÊN GIA',
-                    style: AppTextStyles.label(color: Colors.white70)),
+                Text(product.brand,
+                    style: AppTextStyles.caption(color: AppColors.textSecondary)),
+                Text(product.name,
+                    style: AppTextStyles.body(color: AppColors.textPrimary)
+                        .copyWith(fontWeight: FontWeight.w600),
+                    maxLines: 2, overflow: TextOverflow.ellipsis),
                 const SizedBox(height: AppColors.s4),
-                Text(
-                  advice.isNotEmpty
-                      ? advice
-                      : 'Duy trì thói quen chăm sóc da đều đặn mỗi ngày.',
-                  style: AppTextStyles.body(color: Colors.white),
-                ),
+                Text(_formatPrice(product.price),
+                    style: AppTextStyles.body(color: AppColors.primary)
+                        .copyWith(fontWeight: FontWeight.w600)),
+                if (product.matchReason.isNotEmpty) ...[
+                  const SizedBox(height: AppColors.s4),
+                  Text(product.matchReason,
+                      style: AppTextStyles.caption(color: AppColors.textSecondary),
+                      maxLines: 2, overflow: TextOverflow.ellipsis),
+                ],
               ],
             ),
           ),
@@ -680,14 +791,48 @@ class _ExpertTipCard extends StatelessWidget {
   }
 }
 
-// ── Data models ───────────────────────────────────────────────────────────────
-class _ZoneData {
-  final String number, title, subtitle, value;
-  final bool positive;
+// ── Expert tip / disclaimer ─────────────────────────────────────────────────
+// Nếu advice rỗng (RAG lỗi/timeout), hiển thị đúng disclaimer thật từ BE
+class _ExpertTipCard extends StatelessWidget {
+  final String advice;
+  final String disclaimer;
+  const _ExpertTipCard({required this.advice, required this.disclaimer});
 
-  const _ZoneData({
-    required this.number, required this.title,
-    required this.subtitle, required this.value,
-    required this.positive,
-  });
+  @override
+  Widget build(BuildContext context) {
+    final hasAdvice = advice.trim().isNotEmpty;
+    final bgColor = hasAdvice ? AppColors.primary : AppColors.textSecondary;
+    final icon = hasAdvice ? Icons.lightbulb_outline : Icons.info_outline;
+    final title = hasAdvice ? 'LỜI KHUYÊN CHUYÊN GIA' : 'THÔNG BÁO';
+    final text = hasAdvice
+        ? advice
+        : (disclaimer.isNotEmpty
+            ? disclaimer
+            : 'Hệ thống chưa thể đưa ra tư vấn cho lần phân tích này.');
+
+    return Container(
+      padding: const EdgeInsets.all(AppColors.s16),
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: Colors.white70, size: 20),
+          const SizedBox(width: AppColors.s12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: AppTextStyles.label(color: Colors.white70)),
+                const SizedBox(height: AppColors.s4),
+                Text(text, style: AppTextStyles.body(color: Colors.white)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
