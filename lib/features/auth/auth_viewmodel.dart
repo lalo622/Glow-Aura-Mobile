@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'data/models/auth_models.dart';
 import 'services/auth_service.dart';
+import 'services/google_auth_helper.dart';
 
 // ─── Entity ───────────────────────────────────────────────────────────────────
 class UserEntity {
@@ -126,8 +127,31 @@ class AuthViewModel extends StateNotifier<AuthState> {
     state = const AuthState();
   }
 
-  Future<void> loginWithGoogle() async {}
-  Future<void> loginWithFacebook() async {}
+Future<bool> loginWithGoogle() async {
+  state = state.copyWith(isLoading: true, clearError: true);
+
+  final idToken = await GoogleAuthHelper.signInAndGetIdToken();
+  if (idToken == null) {
+    state = state.copyWith(isLoading: false);
+    return false;
+  }
+
+  final result = await _authService.googleLogin(GoogleLoginRequest(idToken: idToken));
+
+  if (result.error != null) {
+    state = state.copyWith(isLoading: false, errorMessage: result.error!.message);
+    return false;
+  }
+
+  final data = result.data!;
+  if (data.isSuccess && data.user != null) {
+    state = state.copyWith(isLoading: false, user: UserEntity.fromModel(data.user!));
+    return true;
+  }
+
+  state = state.copyWith(isLoading: false, errorMessage: data.message);
+  return false;
+}  Future<void> loginWithFacebook() async {}
 
   void clearError() => state = state.copyWith(clearError: true);
 

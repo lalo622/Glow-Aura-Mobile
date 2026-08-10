@@ -62,4 +62,19 @@ class AuthService {
     final token = await TokenStorage.getAccessToken();
     return token != null;
   }
+  Future<SafeResult<AuthResponse>> googleLogin(GoogleLoginRequest request) =>
+    safeCall(() async {
+      final response = await _dio.post(
+        ApiEndpoints.googleLogin,
+        data: request.toJson(),
+      );
+      final result = AuthResponse.fromJson(response.data);
+      if (result.isSuccess && result.token != null) {
+        await TokenStorage.saveTokens(
+          accessToken: result.token!.accessToken,
+          refreshToken: result.token!.refreshToken,
+        );
+      }
+      return result;
+    });
 }

@@ -8,6 +8,7 @@ class ApiEndpoints {
   static const String refreshToken = '/api/Auth/refresh-token';
   static const String logout = '/api/Auth/logout';
   static const String changePassword = '/api/Auth/change-password';
+  static const String googleLogin = '/api/Auth/google';
 
   // ─── Checkout ────────────────────────────────────────────────
   static const String checkoutPreview = '/api/Checkout/preview';

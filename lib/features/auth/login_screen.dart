@@ -96,7 +96,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 Row(children: [
                   Expanded(child: SocialAuthButton(label: 'Google', logoText: 'G',
                     logoColor: const Color(0xFFEA4335),
-                    onPressed: () => ref.read(authViewModelProvider.notifier).loginWithGoogle())),
+                    onPressed: () async {
+                    final ok = await ref.read(authViewModelProvider.notifier).loginWithGoogle();
+                    if (ok && mounted) context.go('/home');
+                  },
+                  )),
                   const SizedBox(width: 12),
                   Expanded(child: SocialAuthButton(label: 'Facebook', logoText: 'f',
                     logoColor: const Color(0xFF1877F2),
