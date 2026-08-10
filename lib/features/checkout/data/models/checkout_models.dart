@@ -13,21 +13,19 @@ class CheckoutItemRequest {
       };
 }
 
-
+/// Body cho POST /api/Checkout/preview
+/// flat 30k / miễn phí từ 500k, không dựa vào phương thức vận chuyển nữa.
 class CheckoutPreviewRequest {
   final List<CheckoutItemRequest> items;
-  final String shippingMethod; 
   final String? couponCode;
 
   const CheckoutPreviewRequest({
     required this.items,
-    required this.shippingMethod,
     this.couponCode,
   });
 
   Map<String, dynamic> toJson() => {
         'items': items.map((i) => i.toJson()).toList(),
-        'shippingMethod': shippingMethod,
         if (couponCode != null && couponCode!.isNotEmpty) 'couponCode': couponCode,
       };
 }
@@ -38,18 +36,16 @@ class PlaceOrderRequest {
   final String phoneNumber;
   final String? email;
   final String shippingAddress;
-  final String shippingMethod;
   final String paymentMethod;
   final String? couponCode;
   final List<CheckoutItemRequest> items;
-  final String? returnUrl;   
-  final String? cancelUrl;   
+  final String? returnUrl;
+  final String? cancelUrl;
 
   const PlaceOrderRequest({
     required this.fullName,
     required this.phoneNumber,
     required this.shippingAddress,
-    required this.shippingMethod,
     required this.paymentMethod,
     required this.items,
     this.email,
@@ -63,7 +59,6 @@ class PlaceOrderRequest {
         'phoneNumber': phoneNumber,
         if (email != null && email!.isNotEmpty) 'email': email,
         'shippingAddress': shippingAddress,
-        'shippingMethod': shippingMethod,
         'paymentMethod': paymentMethod,
         if (couponCode != null && couponCode!.isNotEmpty) 'couponCode': couponCode,
         'items': items.map((i) => i.toJson()).toList(),
@@ -72,7 +67,7 @@ class PlaceOrderRequest {
       };
 }
 
-// ─── Response models ────────────────────────────────────────────────────────
+// ─── Response models ──
 
 class CheckoutItemDetail {
   final String productId;

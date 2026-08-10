@@ -1,23 +1,15 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../cart/cart_viewmodel.dart'; 
+import '../cart/cart_viewmodel.dart';
 import 'data/models/checkout_models.dart';
 import 'services/checkout_service.dart';
 
-enum ShippingMethod { fast, standard }
-
-enum PaymentMethod { cod, momo , payOS}
-
-extension ShippingMethodX on ShippingMethod {
-  String get apiValue => this == ShippingMethod.fast ? 'fast' : 'standard';
-}
+enum PaymentMethod { cod, payOS }
 
 extension PaymentMethodX on PaymentMethod {
   String get apiValue {
     switch (this) {
       case PaymentMethod.cod:
         return 'COD';
-      case PaymentMethod.momo:
-        return 'MoMo';
       case PaymentMethod.payOS:
         return 'PayOS';
     }
@@ -48,12 +40,13 @@ class CheckoutState {
     PlaceOrderResponse? orderResult,
     String? errorMessage,
     bool clearError = false,
+    bool clearOrderResult = false,
   }) =>
       CheckoutState(
         isLoadingPreview: isLoadingPreview ?? this.isLoadingPreview,
         isSubmitting: isSubmitting ?? this.isSubmitting,
         preview: preview ?? this.preview,
-        orderResult: orderResult ?? this.orderResult,
+        orderResult: clearOrderResult ? null : (orderResult ?? this.orderResult),
         errorMessage: clearError ? null : errorMessage ?? this.errorMessage,
       );
 }
@@ -66,10 +59,8 @@ class CheckoutViewModel extends StateNotifier<CheckoutState> {
 
   CheckoutViewModel(this._checkoutService, this._ref) : super(const CheckoutState());
 
-  /// Gọi lại /preview mỗi khi đổi phương thức vận chuyển hoặc coupon
   Future<void> refreshPreview({
     required List<CheckoutItemRequest> items,
-    required ShippingMethod shippingMethod,
     String? couponCode,
   }) async {
     if (items.isEmpty) return;
@@ -77,7 +68,6 @@ class CheckoutViewModel extends StateNotifier<CheckoutState> {
 
     final request = CheckoutPreviewRequest(
       items: items,
-      shippingMethod: shippingMethod.apiValue,
       couponCode: couponCode,
     );
 
@@ -97,60 +87,83 @@ class CheckoutViewModel extends StateNotifier<CheckoutState> {
     );
   }
 
+  /// Đặt hàng.
   Future<bool> placeOrder({
     required String fullName,
     required String phoneNumber,
     String? email,
     required String shippingAddress,
-    required ShippingMethod shippingMethod,
     required PaymentMethod paymentMethod,
     String? couponCode,
     required List<CheckoutItemRequest> items,
-    String? returnUrl,   
+    String? returnUrl,
     String? cancelUrl,
   }) async {
-    state = state.copyWith(isSubmitting: true, clearError: true);
+    if (state.isSubmitting) return false;
 
-    final request = PlaceOrderRequest(
-      fullName: fullName,
-      phoneNumber: phoneNumber,
-      email: email,
-      shippingAddress: shippingAddress,
-      shippingMethod: shippingMethod.apiValue,
-      paymentMethod: paymentMethod.apiValue,
-      couponCode: couponCode,
-      items: items,
-      returnUrl: returnUrl,
-      cancelUrl: cancelUrl,
+    state = state.copyWith(
+      isSubmitting: true,
+      clearError: true,
+      clearOrderResult: true,
     );
 
-    final result = await _checkoutService.placeOrder(request);
+    try {
+      final request = PlaceOrderRequest(
+        fullName: fullName,
+        phoneNumber: phoneNumber,
+        email: email,
+        shippingAddress: shippingAddress,
+        paymentMethod: paymentMethod.apiValue,
+        couponCode: couponCode,
+        items: items,
+        returnUrl: returnUrl,
+        cancelUrl: cancelUrl,
+      );
 
-    if (result.error != null) {
-      state = state.copyWith(isSubmitting: false, errorMessage: result.error!.message);
-      return false;
+      final result = await _checkoutService.placeOrder(request);
+
+      if (result.error != null) {
+        state = state.copyWith(errorMessage: result.error!.message);
+        return false;
+      }
+
+      final data = result.data!;
+      if (!data.isSuccess) {
+        state = state.copyWith(errorMessage: data.message);
+        return false;
+      }
+
+      state = state.copyWith(orderResult: data);
+
+      if (paymentMethod == PaymentMethod.cod) {
+        await _ref.read(cartViewModelProvider.notifier).clearCart();
+      }
+
+      return true;
+    } finally {
+      state = state.copyWith(isSubmitting: false);
     }
-
-    final data = result.data!;
-    if (!data.isSuccess) {
-      state = state.copyWith(isSubmitting: false, errorMessage: data.message);
-      return false;
-    }
-
-    state = state.copyWith(isSubmitting: false, orderResult: data);
-
-    // Đặt hàng thành công → xoá giỏ hàng
-    await _ref.read(cartViewModelProvider.notifier).clearCart();
-    return true;
   }
-  Future<bool> confirmOrderPaid(String orderId) async {
-    for (var i = 0; i < 5; i++) {
+
+  Future<bool> confirmOrderPaid(
+    String orderId, {
+    int maxAttempts = 15,
+    Duration interval = const Duration(seconds: 1),
+  }) async {
+    for (var i = 0; i < maxAttempts; i++) {
       final result = await _checkoutService.getOrderStatus(orderId);
-      if (result.data?.status == 'Paid') return true;
-      await Future.delayed(const Duration(seconds: 1));
+      final status = result.data?.status?.toLowerCase();
+      if (status == 'paid') {
+        await _ref.read(cartViewModelProvider.notifier).clearCart();
+        return true;
+      }
+      if (i < maxAttempts - 1) {
+        await Future.delayed(interval);
+      }
     }
     return false;
   }
+
   void clearError() => state = state.copyWith(clearError: true);
 }
 

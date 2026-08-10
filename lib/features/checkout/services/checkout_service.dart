@@ -6,7 +6,9 @@ import '../../../core/network/safe_call.dart';
 import '../data/models/checkout_models.dart';
 
 class CheckoutService {
-  final Dio _dio = ApiClient.instance.dio;
+  final Dio _dio;
+    CheckoutService({Dio? dio}) : _dio = dio ?? ApiClient.instance.dio;
+
 
   /// POST /api/Checkout/preview
   Future<SafeResult<CheckoutPreviewResponse>> previewCheckout(
@@ -52,5 +54,5 @@ class CheckoutService {
 }
 
 final checkoutServiceProvider = Provider<CheckoutService>((ref) {
-  return CheckoutService();
+  return CheckoutService(dio: ApiClient.instance.dio);
 });

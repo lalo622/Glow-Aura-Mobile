@@ -6,7 +6,6 @@ import '../checkout_viewmodel.dart';
 class OrderSummarySection extends StatelessWidget {
   final List<CartItemModel> items;
   final CheckoutState checkoutState;
-  final ShippingMethod shippingMethod;
   final TextEditingController couponCtrl;
   final bool couponApplied;
   final VoidCallback onApplyCoupon;
@@ -16,7 +15,6 @@ class OrderSummarySection extends StatelessWidget {
     super.key,
     required this.items,
     required this.checkoutState,
-    required this.shippingMethod,
     required this.couponCtrl,
     required this.couponApplied,
     required this.onApplyCoupon,

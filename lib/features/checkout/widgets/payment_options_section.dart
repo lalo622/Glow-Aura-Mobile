@@ -33,14 +33,6 @@ class PaymentOptionsSection extends StatelessWidget {
           subtitle: 'Quét mã QR / chuyển khoản ngân hàng',
           enabled: true,
         ),
-        const SizedBox(height: AppColors.s8),
-        _option(
-          method: PaymentMethod.momo,
-          icon: Icons.account_balance_wallet_outlined,
-          title: 'Ví điện tử MoMo',
-          subtitle: 'Sắp ra mắt',
-          enabled: false,
-        ),
       ],
     );
   }

@@ -9,7 +9,6 @@ import 'checkout_viewmodel.dart';
 import 'data/models/checkout_models.dart';
 import 'payos_webview_screen.dart';
 import 'widgets/shipping_form_section.dart';
-import 'widgets/shipping_options_section.dart';
 import 'widgets/payment_options_section.dart';
 import 'widgets/order_summary_section.dart';
 import 'widgets/order_success_dialog.dart';
@@ -30,7 +29,6 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
 
   final _formKey = GlobalKey<FormState>();
 
-  ShippingMethod _shippingMethod = ShippingMethod.fast;
   PaymentMethod _paymentMethod = PaymentMethod.cod;
   bool _couponApplied = false;
 
@@ -66,7 +64,6 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     if (cartItems.isEmpty) return;
     await ref.read(checkoutViewModelProvider.notifier).refreshPreview(
           items: _buildItemRequests(cartItems),
-          shippingMethod: _shippingMethod,
           couponCode: _couponApplied ? _couponCtrl.text.trim() : null,
         );
   }
@@ -77,7 +74,6 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
 
     await ref.read(checkoutViewModelProvider.notifier).refreshPreview(
           items: _buildItemRequests(ref.read(cartViewModelProvider).items),
-          shippingMethod: _shippingMethod,
           couponCode: code,
         );
 
@@ -103,17 +99,12 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
   }
 
   Future<void> _placeOrder() async {
-    // Validate form — báo lỗi rõ ràng khi thiếu field (*)
     if (!_formKey.currentState!.validate()) {
       _showSnack('Vui lòng điền đầy đủ thông tin bắt buộc (*)', isError: true);
       return;
     }
     if (_addressCtrl.text.trim().isEmpty) {
       _showSnack('Vui lòng chọn địa chỉ giao hàng', isError: true);
-      return;
-    }
-    if (_paymentMethod == PaymentMethod.momo) {
-      _showSnack('MoMo hiện chưa được hỗ trợ, vui lòng chọn phương thức khác', isError: true);
       return;
     }
 
@@ -130,7 +121,6 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
           phoneNumber: _phoneCtrl.text.trim(),
           email: _emailCtrl.text.trim().isEmpty ? null : _emailCtrl.text.trim(),
           shippingAddress: _addressCtrl.text.trim(),
-          shippingMethod: _shippingMethod,
           paymentMethod: _paymentMethod,
           couponCode: _couponApplied ? _couponCtrl.text.trim() : null,
           items: _buildItemRequests(cartItems),
@@ -148,11 +138,13 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
 
     final orderResult = ref.read(checkoutViewModelProvider).orderResult;
 
+    // COD: đơn được xác nhận ngay, an toàn để báo thành công.
     if (_paymentMethod == PaymentMethod.cod) {
       _showOrderSuccessDialog();
       return;
     }
 
+    // PayOS: đơn mới chỉ "khởi tạo", chưa được thanh toán.
     final paymentUrl = orderResult?.paymentUrl;
     if (paymentUrl == null || paymentUrl.isEmpty) {
       _showSnack('Không lấy được link thanh toán, vui lòng thử lại', isError: true);
@@ -165,28 +157,88 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
 
     if (!mounted) return;
 
-    if (result == PayOSResult.success) {
-      final orderId = orderResult?.orderId;
-      if (orderId == null) {
-        _showSnack('Thanh toán thành công nhưng thiếu mã đơn để xác nhận', isError: false);
-        _showOrderSuccessDialog();
-        return;
-      }
-
-      final confirmed = await ref.read(checkoutViewModelProvider.notifier).confirmOrderPaid(orderId);
-
-      if (confirmed) {
-        _showOrderSuccessDialog();
-      } else {
-        _showSnack(
-          'Đã ghi nhận thanh toán, đơn hàng sẽ được cập nhật trong giây lát',
-          isError: false,
-        );
-        _showOrderSuccessDialog();
-      }
-    } else {
+    if (result != PayOSResult.success) {
       _showSnack('Bạn đã huỷ thanh toán, đơn hàng chưa được xử lý', isError: true);
+      return;
     }
+
+    final orderId = orderResult?.orderId;
+    if (orderId == null) {
+      _showSnack(
+        'Thanh toán có thể đã thành công nhưng thiếu mã đơn để xác nhận. '
+        'Vui lòng kiểm tra lại trong mục Đơn hàng hoặc liên hệ hỗ trợ.',
+        isError: true,
+      );
+      return;
+    }
+
+    await _confirmAndShowResult(orderId);
+  }
+
+  Future<void> _confirmAndShowResult(String orderId) async {
+    _showConfirmingDialog();
+
+    final confirmed = await ref.read(checkoutViewModelProvider.notifier).confirmOrderPaid(orderId);
+
+    if (!mounted) return;
+    Navigator.of(context, rootNavigator: true).pop(); 
+
+    if (confirmed) {
+      _showOrderSuccessDialog();
+    } else {
+      _showPendingConfirmationDialog(orderId);
+    }
+  }
+
+  void _showConfirmingDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const AlertDialog(
+        content: Row(
+          children: [
+            SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(strokeWidth: 2.5),
+            ),
+            SizedBox(width: 16),
+            Expanded(child: Text('Đang xác nhận thanh toán...')),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showPendingConfirmationDialog(String orderId) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Đang chờ xác nhận thanh toán'),
+        content: const Text(
+          'Chúng tôi đã ghi nhận bạn hoàn tất thanh toán trên PayOS, nhưng hệ thống '
+          'chưa xác nhận được giao dịch. Vui lòng thử kiểm tra lại sau ít phút, '
+          'hoặc xem trong mục Đơn hàng của bạn.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.of(dialogContext).pop();
+              _showSnack('Bạn có thể xem trạng thái đơn trong mục Đơn hàng', isError: false);
+            },
+            child: const Text('Để sau'),
+          ),
+          FilledButton(
+            onPressed: () async {
+              Navigator.of(dialogContext).pop();
+              await _confirmAndShowResult(orderId);
+            },
+            child: const Text('Kiểm tra lại'),
+          ),
+        ],
+      ),
+    );
   }
 
   void _showOrderSuccessDialog() {
@@ -246,18 +298,6 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                         const SizedBox(height: AppColors.s16),
                         _buildSection(
                           '2',
-                          'Phương thức vận chuyển',
-                          ShippingOptionsSection(
-                            selected: _shippingMethod,
-                            onChanged: (method) {
-                              setState(() => _shippingMethod = method);
-                              _refreshPreview();
-                            },
-                          ),
-                        ),
-                        const SizedBox(height: AppColors.s16),
-                        _buildSection(
-                          '3',
                           'Phương thức thanh toán',
                           PaymentOptionsSection(
                             selected: _paymentMethod,
@@ -268,12 +308,11 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                         ),
                         const SizedBox(height: AppColors.s16),
                         _buildSection(
-                          '4',
+                          '3',
                           'Đơn hàng của bạn',
                           OrderSummarySection(
                             items: cartState.items,
                             checkoutState: checkoutState,
-                            shippingMethod: _shippingMethod,
                             couponCtrl: _couponCtrl,
                             couponApplied: _couponApplied,
                             onApplyCoupon: _applyCoupon,
