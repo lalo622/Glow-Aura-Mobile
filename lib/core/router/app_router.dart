@@ -20,6 +20,8 @@ import 'package:glow_aura/features/cart/cart_screen.dart';
 import 'package:glow_aura/features/checkout/checkout_screen.dart';
 import 'package:glow_aura/features/product/product_detail_screen.dart';
 import 'package:glow_aura/features/scan/data/models/skin_analysis_result.dart';
+import 'package:glow_aura/features/profile/change_password_screen.dart';
+import 'package:glow_aura/features/profile/order_history_screen.dart';
 
 class AppRouter {
   static final GoRouter router = GoRouter(
@@ -81,6 +83,8 @@ class AppRouter {
         ),
       GoRoute(path: '/cart', builder: (c, s) => const CartScreen()),
       GoRoute(path: '/checkout', builder: (c, s) => const CheckoutScreen()),
+      GoRoute(path: '/change-password', builder: (c, s) => const ChangePasswordScreen()),
+      GoRoute(path: '/order-history', builder: (c, s) => const OrderHistoryScreen()),
     ],
   );
 }

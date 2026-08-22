@@ -36,6 +36,20 @@ class ProfileInfoTab extends StatelessWidget {
               onTap: () => context.go('/edit-profile'),
             ),
             MenuItemData(
+              icon: Icons.lock_outline,
+              iconBg: AppColors.primaryTint,
+              iconColor: AppColors.primary,
+              label: 'Đổi mật khẩu',
+              onTap: () => context.go('/change-password'),
+            ),
+            MenuItemData(
+              icon: Icons.receipt_long_outlined,
+              iconBg: AppColors.primaryTint,
+              iconColor: AppColors.primary,
+              label: 'Lịch sử đơn hàng',
+              onTap: () => context.go('/order-history'),
+            ),
+            MenuItemData(
               icon: Icons.monitor_heart_outlined,
               iconBg: AppColors.primaryTint,
               iconColor: AppColors.primary,

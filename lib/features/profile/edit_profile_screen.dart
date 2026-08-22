@@ -15,45 +15,32 @@ class EditProfileScreen extends ConsumerStatefulWidget {
 class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
   final _formKey = GlobalKey<FormState>();
   final _nameCtrl = TextEditingController();
-  final _ageCtrl = TextEditingController();
-  String? _selectedSkinType;
+  final _phoneCtrl = TextEditingController();
   bool _initialized = false;
-
-  final _skinTypes = [
-    'Da thường',
-    'Da khô',
-    'Da dầu',
-    'Da hỗn hợp',
-    'Da nhạy cảm',
-  ];
 
   @override
   void dispose() {
     _nameCtrl.dispose();
-    _ageCtrl.dispose();
+    _phoneCtrl.dispose();
     super.dispose();
   }
 
   void _initFromProfile(UserProfileModel profile) {
-    if (_initialized) return;
-    _initialized = true;
-    _nameCtrl.text = profile.fullName;
-    _ageCtrl.text = profile.age?.toString() ?? '';
-    _selectedSkinType = _skinTypes.contains(profile.skinType)
-        ? profile.skinType
-        : null;
-  }
+  if (_initialized) return;
+  _initialized = true;
+  _nameCtrl.text = profile.fullName;
+  _phoneCtrl.text = profile.phoneNumber ?? '';
+}
 
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
 
-    final ok = await ref.read(profileViewModelProvider.notifier).updateProfile(
-          UpdateProfileRequest(
-            fullName: _nameCtrl.text.trim(),
-            age: int.tryParse(_ageCtrl.text.trim()),
-            skinType: _selectedSkinType,
-          ),
-        );
+      final ok = await ref.read(profileViewModelProvider.notifier).updateProfile(
+        UpdateProfileRequest(
+          fullName: _nameCtrl.text.trim(),
+          phoneNumber: _phoneCtrl.text.trim().isEmpty ? null : _phoneCtrl.text.trim(),
+        ),
+      );
 
     if (!mounted) return;
 
@@ -216,62 +203,23 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                             ),
                             const SizedBox(height: AppColors.s16),
 
-                            const _FieldLabel('Tuổi'),
+                            const _FieldLabel('Số điện thoại'),
                             const SizedBox(height: AppColors.s8),
                             TextFormField(
-                              controller: _ageCtrl,
-                              keyboardType: TextInputType.number,
+                              controller: _phoneCtrl,
+                              keyboardType: TextInputType.phone,
+                              validator: (v) {
+                                if (v == null || v.isEmpty) return null; // optional
+                                final ok = RegExp(r'^0\d{9}$').hasMatch(v.trim());
+                                return ok ? null : 'Số điện thoại không hợp lệ';
+                              },
                               decoration: const InputDecoration(
-                                hintText: 'Nhập tuổi',
-                                prefixIcon: Icon(Icons.cake_outlined,
+                                hintText: 'Nhập số điện thoại',
+                                prefixIcon: Icon(Icons.phone_outlined,
                                     color: AppColors.textTertiary, size: 20),
                               ),
                             ),
                             const SizedBox(height: AppColors.s24),
-
-                            // ── Thông tin da ─────────────────────────────
-                            const _SectionLabel('THÔNG TIN DA'),
-                            const SizedBox(height: AppColors.s12),
-
-                            const _FieldLabel('Loại da'),
-                            const SizedBox(height: AppColors.s8),
-                            Container(
-                              decoration: BoxDecoration(
-                                color: AppColors.surface,
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(color: AppColors.border),
-                              ),
-                              child: DropdownButtonHideUnderline(
-                                child: DropdownButton<String>(
-                                  value: _selectedSkinType,
-                                  hint: Text('Chọn loại da',
-                                      style: AppTextStyles.body(
-                                          color: AppColors.textTertiary)),
-                                  isExpanded: true,
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: AppColors.s16),
-                                  borderRadius: BorderRadius.circular(12),
-                                  items: _skinTypes
-                                      .map((type) => DropdownMenuItem(
-                                            value: type,
-                                            child: Text(type,
-                                                style: AppTextStyles.body(
-                                                    color:
-                                                        AppColors.textPrimary)),
-                                          ))
-                                      .toList(),
-                                  onChanged: (v) =>
-                                      setState(() => _selectedSkinType = v),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: AppColors.s24),
-
-                            // ── Skin concerns ─────────────────────────────
-                            const _SectionLabel('VẤN ĐỀ DA QUAN TÂM'),
-                            const SizedBox(height: AppColors.s12),
-                            _SkinConcernChips(),
-                            const SizedBox(height: AppColors.s32),
                           ],
                         ),
                       ),
@@ -310,65 +258,6 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
   }
 }
 
-// ── Skin concern chips ────────────────────────────────────────────────────────
-class _SkinConcernChips extends StatefulWidget {
-  @override
-  State<_SkinConcernChips> createState() => _SkinConcernChipsState();
-}
-
-class _SkinConcernChipsState extends State<_SkinConcernChips> {
-  final _concerns = {
-    'Mụn': false,
-    'Lỗ chân lông': false,
-    'Thâm mụn': true,
-    'Nếp nhăn': false,
-    'Da dầu': true,
-    'Nhạy cảm': false,
-    'Tàn nhang': false,
-    'Thâm quầng': false,
-  };
-
-  @override
-  Widget build(BuildContext context) {
-    return Wrap(
-      spacing: AppColors.s8,
-      runSpacing: AppColors.s8,
-      children: _concerns.entries.map((entry) {
-        final selected = entry.value;
-        return GestureDetector(
-          onTap: () =>
-              setState(() => _concerns[entry.key] = !entry.value),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
-            padding: const EdgeInsets.symmetric(
-                horizontal: AppColors.s12, vertical: AppColors.s8),
-            decoration: BoxDecoration(
-              color:
-                  selected ? AppColors.primaryTint : AppColors.surface,
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(
-                color:
-                    selected ? AppColors.primary : AppColors.border,
-              ),
-            ),
-            child: Text(
-              entry.key,
-              style: AppTextStyles.body(
-                color: selected
-                    ? AppColors.primary
-                    : AppColors.textSecondary,
-              ).copyWith(
-                fontWeight: selected
-                    ? FontWeight.w600
-                    : FontWeight.w400,
-              ),
-            ),
-          ),
-        );
-      }).toList(),
-    );
-  }
-}
 
 class _SectionLabel extends StatelessWidget {
   final String text;
@@ -384,7 +273,7 @@ class _FieldLabel extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Text(
         text,
-        style: AppTextStyles.body(color: AppColors.textSecondary)
+        style: AppTextStyles.body(color: const Color.fromARGB(255, 117, 56, 56))
             .copyWith(fontWeight: FontWeight.w600),
       );
 }
