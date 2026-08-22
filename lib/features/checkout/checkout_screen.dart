@@ -151,8 +151,19 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
       return;
     }
 
+    final orderId = orderResult?.orderId;
+    if (orderId == null) {
+      _showSnack(
+        'Thiếu mã đơn để xác nhận thanh toán. Vui lòng liên hệ hỗ trợ.',
+        isError: true,
+      );
+      return;
+    }
+
     final result = await Navigator.of(context).push<PayOSResult>(
-      MaterialPageRoute(builder: (_) => PayOSWebViewScreen(checkoutUrl: paymentUrl)),
+      MaterialPageRoute(
+        builder: (_) => PayOSWebViewScreen(checkoutUrl: paymentUrl, orderId: orderId),
+      ),
     );
 
     if (!mounted) return;
@@ -162,83 +173,8 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
       return;
     }
 
-    final orderId = orderResult?.orderId;
-    if (orderId == null) {
-      _showSnack(
-        'Thanh toán có thể đã thành công nhưng thiếu mã đơn để xác nhận. '
-        'Vui lòng kiểm tra lại trong mục Đơn hàng hoặc liên hệ hỗ trợ.',
-        isError: true,
-      );
-      return;
-    }
-
-    await _confirmAndShowResult(orderId);
-  }
-
-  Future<void> _confirmAndShowResult(String orderId) async {
-    _showConfirmingDialog();
-
-    final confirmed = await ref.read(checkoutViewModelProvider.notifier).confirmOrderPaid(orderId);
-
-    if (!mounted) return;
-    Navigator.of(context, rootNavigator: true).pop(); 
-
-    if (confirmed) {
-      _showOrderSuccessDialog();
-    } else {
-      _showPendingConfirmationDialog(orderId);
-    }
-  }
-
-  void _showConfirmingDialog() {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => const AlertDialog(
-        content: Row(
-          children: [
-            SizedBox(
-              width: 20,
-              height: 20,
-              child: CircularProgressIndicator(strokeWidth: 2.5),
-            ),
-            SizedBox(width: 16),
-            Expanded(child: Text('Đang xác nhận thanh toán...')),
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _showPendingConfirmationDialog(String orderId) {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Đang chờ xác nhận thanh toán'),
-        content: const Text(
-          'Chúng tôi đã ghi nhận bạn hoàn tất thanh toán trên PayOS, nhưng hệ thống '
-          'chưa xác nhận được giao dịch. Vui lòng thử kiểm tra lại sau ít phút, '
-          'hoặc xem trong mục Đơn hàng của bạn.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.of(dialogContext).pop();
-              _showSnack('Bạn có thể xem trạng thái đơn trong mục Đơn hàng', isError: false);
-            },
-            child: const Text('Để sau'),
-          ),
-          FilledButton(
-            onPressed: () async {
-              Navigator.of(dialogContext).pop();
-              await _confirmAndShowResult(orderId);
-            },
-            child: const Text('Kiểm tra lại'),
-          ),
-        ],
-      ),
-    );
+    await ref.read(cartViewModelProvider.notifier).clearCart();
+    _showOrderSuccessDialog();
   }
 
   void _showOrderSuccessDialog() {

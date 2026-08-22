@@ -145,25 +145,6 @@ class CheckoutViewModel extends StateNotifier<CheckoutState> {
     }
   }
 
-  Future<bool> confirmOrderPaid(
-    String orderId, {
-    int maxAttempts = 15,
-    Duration interval = const Duration(seconds: 1),
-  }) async {
-    for (var i = 0; i < maxAttempts; i++) {
-      final result = await _checkoutService.getOrderStatus(orderId);
-      final status = result.data?.status?.toLowerCase();
-      if (status == 'paid') {
-        await _ref.read(cartViewModelProvider.notifier).clearCart();
-        return true;
-      }
-      if (i < maxAttempts - 1) {
-        await Future.delayed(interval);
-      }
-    }
-    return false;
-  }
-
   void clearError() => state = state.copyWith(clearError: true);
 }
 

@@ -1,6 +1,8 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import '../../core/theme/app_theme.dart';
+import 'services/checkout_service.dart';
 
 const String kPayOSReturnUrl = 'https://glowaura.app/payment-success';
 const String kPayOSCancelUrl = 'https://glowaura.app/payment-cancel';
@@ -9,7 +11,13 @@ enum PayOSResult { success, cancelled }
 
 class PayOSWebViewScreen extends StatefulWidget {
   final String checkoutUrl;
-  const PayOSWebViewScreen({super.key, required this.checkoutUrl});
+  final String orderId;
+
+  const PayOSWebViewScreen({
+    super.key,
+    required this.checkoutUrl,
+    required this.orderId,
+  });
 
   @override
   State<PayOSWebViewScreen> createState() => _PayOSWebViewScreenState();
@@ -19,9 +27,12 @@ class _PayOSWebViewScreenState extends State<PayOSWebViewScreen> {
   static final Uri _returnUri = Uri.parse(kPayOSReturnUrl);
   static final Uri _cancelUri = Uri.parse(kPayOSCancelUrl);
 
+  final _checkoutService = CheckoutService();
+
   WebViewController? _controller;
   bool _isLoading = true;
-  bool _resultReturned = false; 
+  bool _isConfirming = false;
+  bool _resultReturned = false;
   String? _loadError;
 
   @override
@@ -52,12 +63,8 @@ class _PayOSWebViewScreenState extends State<PayOSWebViewScreen> {
           onProgress: (progress) {
             if (mounted) setState(() => _isLoading = progress < 100);
           },
-          onNavigationRequest: (request) {
-            if (_matchAndHandle(request.url)) {
-              return NavigationDecision.prevent;
-            }
-            return NavigationDecision.navigate;
-          },
+          onNavigationRequest: (request) => NavigationDecision.navigate,
+          onPageFinished: (url) => _handlePageFinished(url),
           onWebResourceError: (error) {
             if (!mounted) return;
             if (error.isForMainFrame == false) return;
@@ -71,26 +78,107 @@ class _PayOSWebViewScreenState extends State<PayOSWebViewScreen> {
       )
       ..loadRequest(uri);
 
-    setState(() {}); 
+    setState(() {});
   }
 
-  bool _matchAndHandle(String url) {
-    if (_resultReturned) return false;
+  Future<void> _handlePageFinished(String url) async {
+    if (_resultReturned) return;
 
     final uri = Uri.tryParse(url);
-    if (uri == null) return false;
+    if (uri == null) return;
+
+    PayOSResult? result;
 
     if (_isSameEndpoint(uri, _returnUri)) {
-      _resultReturned = true;
-      Navigator.of(context).pop(PayOSResult.success);
-      return true;
+      result = PayOSResult.success;
+    } else if (_isSameEndpoint(uri, _cancelUri)) {
+      result = PayOSResult.cancelled;
     }
-    if (_isSameEndpoint(uri, _cancelUri)) {
-      _resultReturned = true;
-      Navigator.of(context).pop(PayOSResult.cancelled);
-      return true;
+
+    if (result == null) return;
+
+    _resultReturned = true;
+
+    if (!mounted) return;
+
+    // Người dùng huỷ thanh toán 
+    if (result == PayOSResult.cancelled) {
+      Navigator.of(context).pop(result);
+      return;
     }
-    return false;
+
+    // PayOS return success → lấy orderCode từ query parameters.
+    final rawOrderCode = uri.queryParameters['orderCode'];
+    final orderCode = int.tryParse(rawOrderCode ?? '');
+
+    debugPrint('[PayOS] Return URL: $url');
+    debugPrint('[PayOS] orderId=${widget.orderId}');
+    debugPrint('[PayOS] orderCode=$orderCode');
+
+    if (orderCode == null) {
+      debugPrint('[PayOS] Không lấy được orderCode từ Return URL.');
+      _resultReturned = false;
+
+      setState(() {
+        _isConfirming = false;
+        _loadError = 'Không lấy được mã giao dịch PayOS. Vui lòng thử lại.';
+      });
+
+      return;
+    }
+
+    setState(() => _isConfirming = true);
+
+    debugPrint(
+      '[PayOS] Gọi confirm-return với '
+      'orderId=${widget.orderId}, orderCode=$orderCode',
+    );
+
+    final confirmResult = await _checkoutService.confirmPayosReturn(
+      orderId: widget.orderId,
+      orderCode: orderCode,
+    );
+
+    if (!mounted) return;
+
+    if (confirmResult.error != null) {
+      debugPrint(
+        '[PayOS] confirm-return LỖI: '
+        '${confirmResult.error!.message}',
+      );
+
+      setState(() {
+        _isConfirming = false;
+        _loadError =
+            'Không thể xác nhận thanh toán. '
+            '${confirmResult.error!.message}';
+      });
+
+      return;
+    }
+
+    final data = confirmResult.data;
+
+    debugPrint(
+      '[PayOS] confirm-return OK: '
+      'isSuccess=${data?.isSuccess}, '
+      'message=${data?.message}, '
+      'paymentStatus=${data?.paymentStatus}',
+    );
+
+    if (data?.isSuccess != true) {
+      setState(() {
+        _isConfirming = false;
+        _loadError =
+            data?.message ??
+            'Thanh toán chưa được xác nhận. Vui lòng thử lại.';
+      });
+
+      return;
+    }
+
+    // Chỉ báo success sau khi BE xác nhận thành công.
+    Navigator.of(context).pop(PayOSResult.success);
   }
 
   bool _isSameEndpoint(Uri actual, Uri target) {
@@ -98,7 +186,10 @@ class _PayOSWebViewScreenState extends State<PayOSWebViewScreen> {
   }
 
   void _retry() {
-    setState(() => _resultReturned = false);
+    setState(() {
+      _resultReturned = false;
+      _isConfirming = false;
+    });
     _initController();
   }
 
@@ -106,6 +197,7 @@ class _PayOSWebViewScreenState extends State<PayOSWebViewScreen> {
   Widget build(BuildContext context) {
     return WillPopScope(
       onWillPop: () async {
+        if (_isConfirming) return false;
         final confirm = await showDialog<bool>(
           context: context,
           builder: (_) => AlertDialog(
@@ -134,11 +226,27 @@ class _PayOSWebViewScreenState extends State<PayOSWebViewScreen> {
         body: Stack(
           children: [
             if (_controller != null) WebViewWidget(controller: _controller!),
-            if (_isLoading && _loadError == null)
+            if (_isLoading && _loadError == null && !_isConfirming)
               const Center(child: CircularProgressIndicator()),
+            if (_isConfirming) _buildConfirmingOverlay(),
             if (_loadError != null) _buildErrorOverlay(),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildConfirmingOverlay() {
+    return Container(
+      color: AppColors.surface,
+      alignment: Alignment.center,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const CircularProgressIndicator(),
+          const SizedBox(height: 16),
+          Text('Đang xác nhận giao dịch...', style: AppTextStyles.body()),
+        ],
       ),
     );
   }
@@ -153,11 +261,7 @@ class _PayOSWebViewScreenState extends State<PayOSWebViewScreen> {
         children: [
           const Icon(Icons.wifi_off_rounded, size: 48, color: AppColors.textTertiary),
           const SizedBox(height: 16),
-          Text(
-            _loadError!,
-            textAlign: TextAlign.center,
-            style: AppTextStyles.body(),
-          ),
+          Text(_loadError!, textAlign: TextAlign.center, style: AppTextStyles.body()),
           const SizedBox(height: 20),
           Row(
             mainAxisSize: MainAxisSize.min,
@@ -167,10 +271,7 @@ class _PayOSWebViewScreenState extends State<PayOSWebViewScreen> {
                 child: const Text('Huỷ'),
               ),
               const SizedBox(width: 8),
-              FilledButton(
-                onPressed: _retry,
-                child: const Text('Thử lại'),
-              ),
+              FilledButton(onPressed: _retry, child: const Text('Thử lại')),
             ],
           ),
         ],

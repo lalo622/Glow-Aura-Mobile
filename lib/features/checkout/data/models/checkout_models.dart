@@ -171,11 +171,28 @@ class PlaceOrderResponse {
       );
 }
 
-class OrderStatusResponse {
-  final String status;
 
-  const OrderStatusResponse({required this.status});
+class ConfirmPayOsReturnResponse {
+  final bool isSuccess;
+  final String message;
+  final String? orderId;
+  final String? orderNumber;
+  final String? paymentStatus;
 
-  factory OrderStatusResponse.fromJson(Map<String, dynamic> json) =>
-      OrderStatusResponse(status: json['status'] as String? ?? '');
+  const ConfirmPayOsReturnResponse({
+    required this.isSuccess,
+    required this.message,
+    this.orderId,
+    this.orderNumber,
+    this.paymentStatus,
+  });
+
+  factory ConfirmPayOsReturnResponse.fromJson(Map<String, dynamic> json) =>
+      ConfirmPayOsReturnResponse(
+        isSuccess: json['isSuccess'] as bool? ?? false,
+        message: json['message'] as String? ?? '',
+        orderId: json['orderId'] as String?,
+        orderNumber: json['orderNumber'] as String?,
+        paymentStatus: json['paymentStatus'] as String?,
+      );
 }

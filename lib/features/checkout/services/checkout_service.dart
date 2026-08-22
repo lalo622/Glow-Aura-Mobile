@@ -1,9 +1,9 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/network/api_client.dart';
-import '../../../core/network/app_exception.dart';
 import '../../../core/network/safe_call.dart';
 import '../data/models/checkout_models.dart';
+import '../../../core/network/api_endpoints.dart';
 
 class CheckoutService {
   final Dio _dio;
@@ -35,23 +35,26 @@ class CheckoutService {
       return PlaceOrderResponse.fromJson(response.data as Map<String, dynamic>);
     });
   }
-
-  Future<SafeResult<OrderStatusResponse>> getOrderStatus(String orderId) {
+    Future<SafeResult<ConfirmPayOsReturnResponse>> confirmPayosReturn({
+    required String orderId,
+    int? orderCode,
+  }) {
     return safeCall(() async {
-      final response = await _dio.get('/api/Order/$orderId');
+      final response = await _dio.post(
+        ApiEndpoints.payosConfirmReturn,
+        data: {
+          'orderId': orderId,
+          if (orderCode != null) 'orderCode': orderCode,
+        },
+      );
 
-      final data = response.data;
-      if (data is! Map<String, dynamic>) {
-        throw const AppException(
-          type: AppErrorType.unknown,
-          message: 'Phản hồi từ server không đúng định dạng.',
-        );
-      }
-
-      return OrderStatusResponse.fromJson(data);
+      return ConfirmPayOsReturnResponse.fromJson(
+        response.data as Map<String, dynamic>,
+      );
     });
   }
 }
+
 
 final checkoutServiceProvider = Provider<CheckoutService>((ref) {
   return CheckoutService(dio: ApiClient.instance.dio);

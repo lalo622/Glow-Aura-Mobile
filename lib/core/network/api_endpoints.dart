@@ -13,6 +13,7 @@ class ApiEndpoints {
   // ─── Checkout ────────────────────────────────────────────────
   static const String checkoutPreview = '/api/Checkout/preview';
   static const String checkout = '/api/Checkout';
+  static const String payosConfirmReturn = '/api/payments/payos/confirm-return';
 
   // ─── Order ───────────────────────────────────────────────────
   static const String orders = '/api/Order';
