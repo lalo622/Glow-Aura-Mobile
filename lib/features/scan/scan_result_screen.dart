@@ -1,11 +1,9 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:glow_aura/core/theme/app_theme.dart';
 import 'package:google_fonts/google_fonts.dart';
-
-import 'providers/skin_analysis_controller.dart';
+import 'providers/skin_analysis_viewmodel.dart';
 
 class ScanResultScreen extends ConsumerStatefulWidget {
   final String imagePath;
@@ -28,14 +26,14 @@ class _ScanResultScreenState extends ConsumerState<ScanResultScreen> {
     super.initState();
     Future.microtask(() {
       ref
-          .read(skinAnalysisControllerProvider.notifier)
+          .read(skinAnalysisViewmodelProvider.notifier)
           .analyze(widget.imagePath);
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    final analysisState = ref.watch(skinAnalysisControllerProvider);
+    final analysisState = ref.watch(skinAnalysisViewmodelProvider);
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -111,9 +109,6 @@ class _ScanResultScreenState extends ConsumerState<ScanResultScreen> {
                       children: [
                         const SizedBox(height: AppColors.s24),
 
-                        _CapturedImageCard(imagePath: widget.imagePath),
-                        const SizedBox(height: AppColors.s24),
-
                         _ScoreRing(score: result.overallScore),
                         const SizedBox(height: AppColors.s12),
                         Text(
@@ -142,13 +137,6 @@ class _ScanResultScreenState extends ConsumerState<ScanResultScreen> {
                           disclaimer: result.disclaimer,
                         ),
                         const SizedBox(height: AppColors.s24),
-
-                        _SourceModelChip(
-                          scanId: widget.scanId,
-                          sourceModel: result.sourceModel,
-                          isMock: result.isMock,
-                        ),
-                        const SizedBox(height: AppColors.s8),
                       ],
                     ),
                   ),
@@ -196,7 +184,7 @@ class _ScanResultScreenState extends ConsumerState<ScanResultScreen> {
                     height: 44,
                     child: ElevatedButton(
                       onPressed: () => ref
-                          .read(skinAnalysisControllerProvider.notifier)
+                          .read(skinAnalysisViewmodelProvider.notifier)
                           .analyze(widget.imagePath),
                       child: const Text('Thử lại'),
                     ),
@@ -206,94 +194,6 @@ class _ScanResultScreenState extends ConsumerState<ScanResultScreen> {
             ),
           ),
         ),
-      ),
-    );
-  }
-}
-
-
-class _CapturedImageCard extends StatelessWidget {
-  final String imagePath;
-  const _CapturedImageCard({required this.imagePath});
-
-  @override
-  Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(16),
-      child: Stack(
-        children: [
-          Image.file(
-            File(imagePath),
-            width: double.infinity,
-            height: 220,
-            fit: BoxFit.cover,
-            errorBuilder: (_, __, ___) => Container(
-              width: double.infinity,
-              height: 220,
-              color: AppColors.surface,
-              child: const Icon(Icons.broken_image_outlined,
-                  size: 48, color: AppColors.textSecondary),
-            ),
-          ),
-          Positioned(
-            top: 12, left: 12,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-              decoration: BoxDecoration(
-                color: Colors.black54,
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: const Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.check_circle, color: Colors.greenAccent, size: 14),
-                  SizedBox(width: 4),
-                  Text('Đã lưu vào thư viện',
-                      style: TextStyle(color: Colors.white, fontSize: 11)),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _SourceModelChip extends StatelessWidget {
-  final int scanId;
-  final String sourceModel;
-  final bool isMock;
-  const _SourceModelChip({
-    required this.scanId,
-    required this.sourceModel,
-    required this.isMock,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final statusColor = isMock ? Colors.orange : AppColors.success;
-    final label = sourceModel.isNotEmpty ? sourceModel : 'unknown';
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(
-        color: statusColor.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: statusColor.withValues(alpha: 0.3)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(isMock ? Icons.science_outlined : Icons.verified_outlined,
-              size: 14, color: statusColor),
-          const SizedBox(width: 6),
-          Text(
-            isMock
-                ? 'Dữ liệu demo · Scan #$scanId'
-                : 'Nguồn: $label · Scan #$scanId',
-            style: TextStyle(color: statusColor, fontSize: 11),
-          ),
-        ],
       ),
     );
   }
@@ -392,7 +292,6 @@ class _MetricCard extends StatelessWidget {
     );
   }
 }
-
 class _ExpertAdviceCard extends StatelessWidget {
   final String advice;
   final String disclaimer;

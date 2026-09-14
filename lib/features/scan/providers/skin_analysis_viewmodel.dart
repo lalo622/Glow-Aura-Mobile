@@ -48,36 +48,30 @@ final class SkinAnalysisError extends SkinAnalysisState {
   const SkinAnalysisError(this.message);
 }
 
-class SkinAnalysisController extends StateNotifier<SkinAnalysisState> {
+class SkinAnalysisViewmodel extends StateNotifier<SkinAnalysisState> {
   final SkinAnalysisService _service;
   CancelToken? _cancelToken;
 
-  SkinAnalysisController(this._service) : super(const SkinAnalysisState.idle());
+  SkinAnalysisViewmodel(this._service) : super(const SkinAnalysisState.idle());
 
   Future<void> analyze(String imagePath) async {
     _cancelToken = CancelToken();
     state = const SkinAnalysisState.uploading(0.0);
-    debugPrint('[SkinAnalysis] Bắt đầu upload: $imagePath');
 
     final result = await _service.analyzeImage(
       imagePath,
       cancelToken: _cancelToken,
       onProgress: (progress) {
-        debugPrint(
-            '[SkinAnalysis] Upload progress: ${(progress * 100).toStringAsFixed(0)}%');
         state = SkinAnalysisState.uploading(progress);
       },
     );
 
     if (result.error != null) {
-      debugPrint('[SkinAnalysis] LỖI: ${result.error!.message}');
       state = SkinAnalysisState.error(result.error!.message);
       return;
     }
 
     final data = result.data!;
-    debugPrint(
-        '[SkinAnalysis]  THÀNH CÔNG — sessionId: ${data.sessionId}, totalAcne: ${data.acneSummary.totalAcne}');
     state = SkinAnalysisState.success(data);
   }
 
@@ -96,7 +90,7 @@ class SkinAnalysisController extends StateNotifier<SkinAnalysisState> {
   }
 }
 
-final skinAnalysisControllerProvider = StateNotifierProvider.autoDispose<
-    SkinAnalysisController, SkinAnalysisState>(
-  (ref) => SkinAnalysisController(ref.watch(skinAnalysisServiceProvider)),
+final skinAnalysisViewmodelProvider = StateNotifierProvider.autoDispose<
+    SkinAnalysisViewmodel, SkinAnalysisState>(
+  (ref) => SkinAnalysisViewmodel(ref.watch(skinAnalysisServiceProvider)),
 );

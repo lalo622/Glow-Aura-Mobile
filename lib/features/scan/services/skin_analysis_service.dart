@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:jwt_decoder/jwt_decoder.dart';
 import '../../../core/network/api_client.dart';
@@ -15,9 +16,6 @@ class SkinAnalysisService {
   SkinAnalysisService(this._dio);
 
   /// Upload ảnh để phân tích da.
-  ///
-  /// [onProgress] callback (0.0 → 1.0) — đây là % UPLOAD (gửi bytes lên),
-  /// không phải % xử lý AI ở server.
   Future<SafeResult<SkinAnalysisResult>> analyzeImage(
     String imagePath, {
     void Function(double progress)? onProgress,
@@ -55,8 +53,11 @@ class SkinAnalysisService {
         return SkinAnalysisResult.fromJson(data);
       });
 
-  /// Lấy lịch sử các lần phân tích da của người dùng đang đăng nhập.
-  Future<SafeResult<SkinAnalysisHistoryResponse>> getHistory({int? limit}) =>
+  /// Lấy lịch sử các lần phân tích da của người dùng đang đăng nhập, có
+  Future<SafeResult<SkinAnalysisHistoryResponse>> getHistory({
+    int page = 1,
+    int pageSize = 20,
+  }) =>
       safeCall(() async {
         final userId = await _getCurrentUserId();
         if (userId == null) {
@@ -66,15 +67,14 @@ class SkinAnalysisService {
             statusCode: 401,
           );
         }
-
         final response = await _dio.get(
           ApiEndpoints.skinAnalysisHistory,
           queryParameters: {
             'userId': userId,
-            if (limit != null) 'limit': limit,
+            'page': page,
+            'pageSize': pageSize,
           },
         );
-
         final data = response.data;
         if (data is! Map<String, dynamic>) {
           throw const AppException(

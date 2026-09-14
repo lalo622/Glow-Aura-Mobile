@@ -39,7 +39,6 @@ class ImageConverter {
         ),
       );
     } catch (e) {
-      debugPrint('ImageConverter.toInputImage error: $e');
       return null;
     }
   }

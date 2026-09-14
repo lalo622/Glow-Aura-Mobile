@@ -7,7 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:glow_aura/core/theme/app_theme.dart';
-
+import 'package:glow_aura/core/network/token_storage.dart';
 import 'services/camera_service.dart';
 import 'data/scan_database.dart';
 import 'services/image_save_service.dart';
@@ -27,58 +27,108 @@ class _ScanScreenState extends ConsumerState<ScanScreen>
   bool _hasTriggeredCapture = false;
   bool _isCapturing         = false;
   bool    _isInitializing = true;
+  bool _captureFailed       = false;
+  String _captureFailureMessage = _defaultCaptureFailureMessage;
+
+static const _defaultCaptureFailureMessage =
+    'Vui lòng giữ điện thoại ổn định, đảm bảo khuôn mặt nằm trọn trong '
+    'khung hình và đủ ánh sáng, sau đó thử lại.';
+
+String _messageForFailure(FaceCaptureFailureReason? reason) {
+  if (reason == FaceCaptureFailureReason.faceOccluded) {
+    return 'Khuôn mặt chưa rõ. Vui lòng bỏ vật che mặt và đảm bảo toàn bộ '
+        'khuôn mặt nằm trong khung hình.';
+  }
+  return _defaultCaptureFailureMessage;
+}
   String? _errorMessage;
   DateTime? _stableStartTime;
-  static const _requiredHoldMs = 1500;
+  static const _requiredHoldMs = 800;
   late final AnimationController _progressController;
   double _progressTarget = 0.0;
   late final AnimationController _shutterController;
   late final Animation<double>   _shutterOpacity;
-
-
   late final AnimationController _pulseController;
   late final Animation<double>   _pulseAnimation;
 
+  bool get _isReady {
+  final faceStable = _smoothedState.isFaceStable;
+  final centeredStable = _smoothedState.isCenteredStable;
+  final faceLargeEnough = _smoothedState.isFaceLargeEnough;
+  final lightingStable = _smoothedState.isLightingStable;
+  final headPoseStable = _smoothedState.isHeadPoseStable;
+
+  final ready = faceStable &&
+      centeredStable &&
+      faceLargeEnough &&
+      lightingStable &&
+      headPoseStable;
+
+  return ready;
+}
+
+  bool get _isReadyToCapture => _isReady && _smoothedState.isMotionStable;
+
   @override
-  void initState() {
-    super.initState();
+void initState() {
+  super.initState();
 
-    // Pulse
-    _pulseController = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 2),
-    )..repeat(reverse: true);
-    _pulseAnimation = Tween<double>(begin: 0.95, end: 1.05).animate(
-      CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
-    );
+  // Pulse
+  _pulseController = AnimationController(
+    vsync: this,
+    duration: const Duration(seconds: 2),
+  )..repeat(reverse: true);
 
-    // Progress Ring 
-    _progressController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 120), 
-    );
+  _pulseAnimation = Tween<double>(begin: 0.95, end: 1.05).animate(
+    CurvedAnimation(
+      parent: _pulseController,
+      curve: Curves.easeInOut,
+    ),
+  );
 
-    // Shutter Flash — 0 → 0.6 → 0 trong 180ms
-    _shutterController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 180),
-    );
-    _shutterOpacity = TweenSequence<double>([
-      TweenSequenceItem(
-          tween: Tween(begin: 0.0, end: 0.65), weight: 30),
-      TweenSequenceItem(
-          tween: Tween(begin: 0.65, end: 0.0), weight: 70),
-    ]).animate(CurvedAnimation(
+  // Progress Ring
+  _progressController = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 120),
+  );
+
+  // Shutter Flash
+  _shutterController = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 180),
+  );
+
+  _shutterOpacity = TweenSequence<double>([
+    TweenSequenceItem(
+      tween: Tween(begin: 0.0, end: 0.65),
+      weight: 30,
+    ),
+    TweenSequenceItem(
+      tween: Tween(begin: 0.65, end: 0.0),
+      weight: 70,
+    ),
+  ]).animate(
+    CurvedAnimation(
       parent: _shutterController,
       curve: Curves.easeOut,
-    ));
+    ),
+  );
 
-    ref.read(scanDatabaseProvider).cleanOldScans();
-    ref.read(imageSaveServiceProvider).retryPendingUploads();
+  ref.read(scanDatabaseProvider).cleanOldScans();
 
-    _initCamera();
-  }
+  _initCamera();
 
+  _retryPendingUploads();
+}
+Future<void> _retryPendingUploads() async {
+  final userId = await TokenStorage.getUserId();
+
+  if (userId == null) return;
+
+  await ref
+      .read(imageSaveServiceProvider)
+      .retryPendingUploads(userId);
+}
   Future<void> _initCamera() async {
     setState(() {
       _isInitializing = true;
@@ -100,13 +150,7 @@ class _ScanScreenState extends ConsumerState<ScanScreen>
        _detectionSub = _cameraService.smoothedStream.listen((state) {
       if (!mounted) return;
       setState(() => _smoothedState = state);
-
-      final isReady = state.isFaceStable
-          && state.isCenteredStable
-          && state.isFaceLargeEnough
-          && state.isLightingStable;
-
-      if (isReady) {
+      if (_isReadyToCapture) {
         _stableStartTime ??= DateTime.now();
 
         final heldMs = DateTime.now()
@@ -148,62 +192,47 @@ class _ScanScreenState extends ConsumerState<ScanScreen>
       });
     }
   }
-
-    Future<void> _onCapture({int retryCount = 0}) async {
+    
+  Future<void> _onCapture() async {
   if (_isCapturing) return;
   HapticFeedback.mediumImpact();
-  setState(() => _isCapturing = true);
+  setState(() {
+    _isCapturing   = true;
+    _captureFailed = false;
+  });
 
   try {
-    debugPrint('[Capture] Bắt đầu takePicture (retry=$retryCount)');
-    final file = await _cameraService.takeBurstPicture(count: 3);
-    debugPrint('[Capture] takePicture xong: ${file?.path}');
+    final captureResult = await _cameraService.takeBurstPicture(count: 3);
+    if (!mounted) return;
 
-    if (!mounted) return; 
-
-    if (file == null) {
-      if (retryCount < 2) {
-        debugPrint('[Capture] Bị reject, thử lại lần #${retryCount + 1}');
-        await _cameraService.restartStream();
-        if (!mounted) return;
-        await Future.delayed(const Duration(milliseconds: 300));
-        if (!mounted) return;
-
-        setState(() => _isCapturing = false);
-        _hasTriggeredCapture = false;
-        return;
-      } else {
-        debugPrint('[Capture] Hết lượt retry, báo lỗi cho user');
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Ảnh bị mờ hoặc lệch, vui lòng thử lại')),
-        );
-        setState(() => _isCapturing = false);
-        await _resetCaptureState();
-        return;
-      }
+    if (!captureResult.isSuccess) {
+      // Không đạt Face Quality Gate
+      setState(() {
+        _isCapturing          = false;
+        _captureFailed        = true;
+        _captureFailureMessage = _messageForFailure(captureResult.failureReason);
+      });
+      return;
     }
 
+    final file = captureResult.file!;
     _shutterController.forward(from: 0.0);
 
-    debugPrint('[Capture] Bắt đầu saveScan');
     final imageSaveService = ref.read(imageSaveServiceProvider);
-    final result = await imageSaveService.saveScan(file.path);
-    debugPrint('[Capture] saveScan xong: scanId=${result.scanId}');
+    final userId = await TokenStorage.getUserId();
+    if (userId == null) return;
 
+    final result = await imageSaveService.saveScan(file.path, userId: userId);
     if (!mounted) return;
     setState(() => _isCapturing = false);
 
-    debugPrint('[Capture] Chuẩn bị push /scan-result');
     await context.push('/scan-result', extra: {
       'imagePath': result.localPath,
       'scanId':    result.scanId,
     });
-    debugPrint('[Capture] Đã push xong, quay lại từ scan-result');
 
     if (mounted) await _resetCaptureState();
   } catch (e, st) {
-    debugPrint('[Capture]  LỖI KHÔNG BẮT ĐƯỢC: $e');
-    debugPrint('$st');
     if (mounted) {
       setState(() => _isCapturing = false);
       ScaffoldMessenger.of(context).showSnackBar(
@@ -212,7 +241,11 @@ class _ScanScreenState extends ConsumerState<ScanScreen>
     }
   }
 }
-
+      Future<void> _onRetryAfterFailure() async {
+      setState(() => _captureFailed = false);
+      await _resetCaptureState(); 
+    }
+    
     Future<void> _resetCaptureState() async {
     setState(() {
       _hasTriggeredCapture = false;
@@ -269,10 +302,10 @@ class _ScanScreenState extends ConsumerState<ScanScreen>
                         pulseAnimation:     _pulseAnimation,
                         progressController: _progressController,
                         isCapturing:        _isCapturing,
+                        isReadyToCapture:   _isReadyToCapture,
                         onCapture:          _onCapture,
                       ),
-
-                      // ── [MỚI] Shutter Flash overlay ──────────────────────
+      
                       AnimatedBuilder(
                         animation: _shutterOpacity,
                         builder: (_, __) {
@@ -289,8 +322,59 @@ class _ScanScreenState extends ConsumerState<ScanScreen>
                           );
                         },
                       ),
+                       if (_captureFailed)
+                    _CaptureFailedOverlay(
+                      message: _captureFailureMessage,
+                      onRetry: _onRetryAfterFailure,
+                    ),
                     ],
                   ),
+      ),
+    );
+  }
+  
+}
+class _CaptureFailedOverlay extends StatelessWidget {
+  final String message;
+  final VoidCallback onRetry;
+  const _CaptureFailedOverlay({required this.message, required this.onRetry});
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned.fill(
+      child: Container(
+        color: Colors.black.withValues(alpha: 0.75),
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(32),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.error_outline, size: 56, color: Colors.orangeAccent),
+                const SizedBox(height: 16),
+                Text('Ảnh chưa đạt yêu cầu',
+                    style: AppTextStyles.title().copyWith(color: Colors.white),
+                    textAlign: TextAlign.center),
+                const SizedBox(height: 8),
+                Text(message,
+                    style: AppTextStyles.body(color: Colors.white70),
+                    textAlign: TextAlign.center),
+                const SizedBox(height: 24),
+                ElevatedButton.icon(
+                  onPressed: onRetry,
+                  icon:  const Icon(Icons.refresh),
+                  label: const Text('Thử lại'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -304,6 +388,7 @@ class _CameraBody extends StatelessWidget {
   final Animation<double>  pulseAnimation;
   final AnimationController progressController; 
   final bool               isCapturing;
+  final bool               isReadyToCapture;
   final VoidCallback       onCapture;
 
   const _CameraBody({
@@ -312,6 +397,7 @@ class _CameraBody extends StatelessWidget {
     required this.pulseAnimation,
     required this.progressController,
     required this.isCapturing,
+    required this.isReadyToCapture,
     required this.onCapture,
   });
 
@@ -331,53 +417,13 @@ class _CameraBody extends StatelessWidget {
           ),
         ),
 
-        _ScanStatusBar(smoothedState: smoothedState),
+        // Checklist realtime
+        _ScanChecklistPanel(smoothedState: smoothedState),
         const SizedBox(height: AppColors.s16),
-
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: AppColors.s16),
-          child: Row(
-            children: [
-              Expanded(
-                child: _StatusChip(
-                  icon:       Icons.wb_sunny_outlined,
-                  label:      'Ánh sáng',
-                  value:      smoothedState.isLightingStable ? 'TỐT ƯU' : 'THIẾU SÁNG',
-                  valueColor: smoothedState.isLightingStable
-                      ? AppColors.success
-                      : Colors.orange,
-                ),
-              ),
-              const SizedBox(width: AppColors.s12),
-              Expanded(
-                child: _StatusChip(
-                  icon:  Icons.face_outlined,
-                  label: 'Khuôn mặt',
-                  value: !smoothedState.isFaceStable
-                      ? 'KHÔNG THẤY'
-                      : !smoothedState.isCenteredStable
-                          ? 'CĂN CHỈNH LẠI'
-                          : !smoothedState.isFaceLargeEnough
-                              ? 'LẠI GẦN HƠN'
-                              : 'CHÍNH XÁC',
-                  valueColor: smoothedState.isFaceStable &&
-                              smoothedState.isCenteredStable &&
-                              smoothedState.isFaceLargeEnough
-                      ? AppColors.primary
-                      : Colors.orange,
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: AppColors.s24),
 
         _CameraControls(
           isCapturing:      isCapturing,
-          isReadyToCapture: smoothedState.isFaceStable && 
-                            smoothedState.isCenteredStable&&
-                            smoothedState.isFaceLargeEnough &&
-                            smoothedState.isLightingStable,
+          isReadyToCapture: isReadyToCapture,
           onCapture:        onCapture,
         ),
         const SizedBox(height: AppColors.s12),
@@ -410,8 +456,12 @@ class _CameraPreviewArea extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isAligned = smoothedState.isCenteredStable &&
+        smoothedState.isFaceLargeEnough &&
+        smoothedState.isHeadPoseStable;
+
     final ovalColor = smoothedState.isFaceStable
-        ? (smoothedState.isCenteredStable ? AppColors.primary : Colors.orange)
+        ? (isAligned ? AppColors.primary : Colors.orange)
         : Colors.white54;
 
     return ClipRRect(
@@ -473,12 +523,19 @@ class _CameraPreviewArea extends StatelessWidget {
 
           ..._buildScanCorners(ovalColor),
 
+          // Mũi tên gợi ý hướng — chỉ hiện khi mặt đã ổn định nhưng lệch vị trí
+          if (smoothedState.isFaceStable &&
+              smoothedState.isHeadPoseStable &&
+              smoothedState.isFaceLargeEnough &&
+              !smoothedState.isCenteredStable)
+            _DirectionArrowOverlay(smoothedState: smoothedState),
+
           if (smoothedState.isFaceStable)
-            const Positioned(
+            Positioned(
               bottom: 16,
               left: 0,
               right: 0,
-              child: Center(child: _DetectedBadge()),
+              child: Center(child: _DetectedBadge(smoothedState: smoothedState)),
             ),
         ],
       ),
@@ -496,6 +553,49 @@ class _CameraPreviewArea extends StatelessWidget {
       Positioned(bottom: 40, right: 60,
           child: _ScanCorner(top: false, left: false, color: color)),
     ];
+  }
+}
+
+/// Mũi tên nổi trên preview, chỉ hướng người dùng cần di chuyển mặt.
+class _DirectionArrowOverlay extends StatelessWidget {
+  final SmoothedFaceState smoothedState;
+  const _DirectionArrowOverlay({required this.smoothedState});
+
+  @override
+  Widget build(BuildContext context) {
+    IconData? icon;
+    Alignment alignment = Alignment.center;
+
+    if (smoothedState.horizontalGuide == HorizontalGuide.moveLeft) {
+      icon = Icons.arrow_back_rounded;
+      alignment = Alignment.centerLeft;
+    } else if (smoothedState.horizontalGuide == HorizontalGuide.moveRight) {
+      icon = Icons.arrow_forward_rounded;
+      alignment = Alignment.centerRight;
+    } else if (smoothedState.verticalGuide == VerticalGuide.moveUp) {
+      icon = Icons.arrow_upward_rounded;
+      alignment = Alignment.topCenter;
+    } else if (smoothedState.verticalGuide == VerticalGuide.moveDown) {
+      icon = Icons.arrow_downward_rounded;
+      alignment = Alignment.bottomCenter;
+    }
+
+    if (icon == null) return const SizedBox.shrink();
+
+    return Align(
+      alignment: alignment,
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: Colors.black.withValues(alpha: 0.35),
+            shape: BoxShape.circle,
+          ),
+          child: Icon(icon, color: Colors.white, size: 28),
+        ),
+      ),
+    );
   }
 }
 
@@ -592,58 +692,166 @@ class _ProgressRingPainter extends CustomPainter {
       old.baseColor != baseColor;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 
-class _ScanStatusBar extends StatelessWidget {
-  final SmoothedFaceState smoothedState;
+// Checklist realtime 
 
-  const _ScanStatusBar({required this.smoothedState});
-
-  String get _statusText {
-  if (!smoothedState.isFaceStable)      return 'Hướng camera về phía khuôn mặt';
-  if (!smoothedState.isCenteredStable)  return 'Di chuyển để căn giữa khuôn mặt';
-  if (!smoothedState.isFaceLargeEnough) return 'Đưa khuôn mặt lại gần hơn';
-  if (!smoothedState.isLightingStable)  return 'Cần thêm ánh sáng';
-  if (smoothedState.captureProgress < 0.83) return 'Giữ yên, đang chuẩn bị chụp...';
-  return 'Đang chụp...';
+class _ChecklistItem {
+  final String label;
+  final bool passed;
+  const _ChecklistItem(this.label, this.passed);
 }
+
+class _ScanChecklistPanel extends StatelessWidget {
+  final SmoothedFaceState smoothedState;
+  const _ScanChecklistPanel({required this.smoothedState});
+
+  List<_ChecklistItem> _buildChecklist(SmoothedFaceState s) {
+    final items = <_ChecklistItem>[];
+
+    items.add(_ChecklistItem('Khuôn mặt', s.isFaceStable));
+    if (!s.isFaceStable) return items;
+
+    final positionOk = s.isCenteredStable && s.isFullyInFrame;
+    items.add(_ChecklistItem('Vị trí', positionOk));
+    if (!positionOk) return items;
+
+    items.add(_ChecklistItem('Khoảng cách', s.isFaceLargeEnough));
+    if (!s.isFaceLargeEnough) return items;
+
+    items.add(_ChecklistItem('Góc mặt', s.isHeadPoseStable));
+    if (!s.isHeadPoseStable) return items;
+
+    items.add(_ChecklistItem('Ánh sáng', s.isLightingStable));
+    return items;
+  }
+
+  /// Dòng gợi ý cụ thể hiển thị dưới checklist — icon + text
+  ({IconData icon, String text}) _hintFor(SmoothedFaceState s) {
+    if (!s.isFaceStable) {
+      return (
+        icon: Icons.face_retouching_off,
+        text: 'Đưa khuôn mặt vào khung hình',
+      );
+    }
+
+    if (!s.isHeadPoseStable) {
+      switch (s.headPoseGuide) {
+        case HeadPoseGuide.turnLeft:
+          return (icon: Icons.rotate_left, text: 'Xoay mặt sang trái để nhìn thẳng camera');
+        case HeadPoseGuide.turnRight:
+          return (icon: Icons.rotate_right, text: 'Xoay mặt sang phải để nhìn thẳng camera');
+        case HeadPoseGuide.lookUp:
+          return (icon: Icons.keyboard_arrow_up, text: 'Ngẩng mặt lên một chút');
+        case HeadPoseGuide.lookDown:
+          return (icon: Icons.keyboard_arrow_down, text: 'Cúi mặt xuống một chút');
+        case HeadPoseGuide.tiltHead:
+          return (icon: Icons.rotate_90_degrees_ccw, text: 'Giữ đầu thẳng, đừng nghiêng');
+        case HeadPoseGuide.ok:
+          break;
+      }
+    }
+
+    if (!s.isFaceLargeEnough) {
+      return s.distanceGuide == DistanceGuide.tooClose
+          ? (icon: Icons.zoom_out_map, text: 'Đưa camera ra xa hơn một chút')
+          : (icon: Icons.center_focus_strong, text: 'Đưa camera lại gần hơn một chút');
+    }
+
+    if (!s.isFullyInFrame) {
+      return (icon: Icons.crop_free, text: 'Lùi lại để thấy trọn khuôn mặt trong khung');
+    }
+
+    if (!s.isCenteredStable) {
+      if (s.horizontalGuide == HorizontalGuide.moveLeft) {
+        return (icon: Icons.arrow_back, text: 'Di chuyển mặt sang trái một chút');
+      }
+      if (s.horizontalGuide == HorizontalGuide.moveRight) {
+        return (icon: Icons.arrow_forward, text: 'Di chuyển mặt sang phải một chút');
+      }
+      if (s.verticalGuide == VerticalGuide.moveUp) {
+        return (icon: Icons.arrow_upward, text: 'Đưa mặt lên một chút');
+      }
+      if (s.verticalGuide == VerticalGuide.moveDown) {
+        return (icon: Icons.arrow_downward, text: 'Đưa mặt xuống một chút');
+      }
+      return (icon: Icons.center_focus_weak, text: 'Di chuyển để căn giữa khuôn mặt');
+    }
+
+    if (!s.isLightingStable) {
+      switch (s.lightingGuide) {
+        case LightingGuide.tooDark:
+          return (icon: Icons.wb_sunny_outlined, text: 'Cần thêm ánh sáng');
+        case LightingGuide.tooBright:
+          return (icon: Icons.wb_sunny, text: 'Ánh sáng quá gắt, giảm bớt một chút');
+        case LightingGuide.backlit:
+          return (
+            icon: Icons.flare,
+            text: 'Đang ngược sáng — đừng đứng quay lưng với cửa sổ/đèn',
+          );
+        case LightingGuide.uneven:
+          return (
+            icon: Icons.brightness_6,
+            text: 'Ánh sáng không đều 2 bên mặt, đứng nơi sáng đều hơn',
+          );
+        case LightingGuide.ok:
+          break;
+      }
+    }
+    if (!s.isMotionStable) {
+      return (
+        icon: Icons.phone_iphone,
+        text: 'Giữ điện thoại và khuôn mặt ổn định',
+      );
+    }
+
+    if (s.captureProgress < 0.83) {
+      return (icon: Icons.check_circle_outline, text: 'Giữ yên, đang chuẩn bị chụp...');
+    }
+
+    return (icon: Icons.check_circle, text: 'Đang chụp...');
+  }
 
   @override
   Widget build(BuildContext context) {
-    final isReady = smoothedState.isFaceStable &&
-        smoothedState.isCenteredStable &&
-        smoothedState.isFaceLargeEnough && 
-        smoothedState.isLightingStable;
+    final checklist = _buildChecklist(smoothedState);
+    final allPassed = checklist.length == 5 && checklist.every((i) => i.passed);
+    final isReadyToCapture = allPassed && smoothedState.isMotionStable;
+    final hint = _hintFor(smoothedState);
+
+    final headerText = !allPassed
+        ? 'Đang căn chỉnh...'
+        : !smoothedState.isMotionStable
+            ? 'Giữ điện thoại và khuôn mặt ổn định'
+            : 'Đã sẵn sàng';
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: AppColors.s16),
       padding: const EdgeInsets.all(AppColors.s16),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha:0.08),
+        color: Colors.white.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withValues(alpha:0.12)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
       ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Expanded(
-                child: Text(
-                  _statusText,
-                  style: AppTextStyles.body(color: Colors.white)
-                      .copyWith(fontWeight: FontWeight.w500),
-                ),
+              Text(
+                headerText,
+                style: AppTextStyles.body(color: Colors.white)
+                    .copyWith(fontWeight: FontWeight.w600),
               ),
               AnimatedSwitcher(
                 duration: const Duration(milliseconds: 300),
-                child: isReady
+                child: isReadyToCapture
                     ? const Icon(Icons.check_circle,
                         color: AppColors.success, size: 20)
                     : const SizedBox(
-                        width:  20,
+                        width: 20,
                         height: 20,
-                        child:  CircularProgressIndicator(
+                        child: CircularProgressIndicator(
                           strokeWidth: 2,
                           color: AppColors.primary,
                         ),
@@ -651,8 +859,48 @@ class _ScanStatusBar extends StatelessWidget {
               ),
             ],
           ),
+          const SizedBox(height: AppColors.s12),
 
-          if (isReady && smoothedState.captureProgress > 0) ...[
+          AnimatedSwitcher(
+            duration: const Duration(milliseconds: 250),
+            child: Column(
+              key: ValueKey(checklist.length * 10 +
+                  (checklist.isEmpty ? 0 : (checklist.last.passed ? 1 : 0))),
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                for (final item in checklist) _ChecklistRow(item: item),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: AppColors.s12),
+
+          if (!isReadyToCapture)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(
+                  horizontal: AppColors.s12, vertical: AppColors.s12),
+              decoration: BoxDecoration(
+                color: Colors.orange.withValues(alpha: 0.18),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.orange.withValues(alpha: 0.45)),
+              ),
+              child: Row(
+                children: [
+                  Icon(hint.icon, size: 24, color: Colors.orangeAccent),
+                  const SizedBox(width: AppColors.s12),
+                  Expanded(
+                    child: Text(
+                      hint.text,
+                      style: AppTextStyles.body(color: Colors.white)
+                          .copyWith(fontWeight: FontWeight.w600, height: 1.25),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+          if (isReadyToCapture && smoothedState.captureProgress > 0) ...[
             const SizedBox(height: AppColors.s8),
             ClipRRect(
               borderRadius: BorderRadius.circular(4),
@@ -676,6 +924,37 @@ class _ScanStatusBar extends StatelessWidget {
   }
 }
 
+class _ChecklistRow extends StatelessWidget {
+  final _ChecklistItem item;
+  const _ChecklistRow({required this.item});
+
+  @override
+  Widget build(BuildContext context) {
+    final color = item.passed ? AppColors.success : Colors.white38;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        children: [
+          Icon(
+            item.passed ? Icons.check_circle : Icons.radio_button_unchecked,
+            size: 16,
+            color: color,
+          ),
+          const SizedBox(width: AppColors.s8),
+          Text(
+            item.label,
+            style: AppTextStyles.caption().copyWith(
+              color: item.passed ? Colors.white : Colors.white60,
+              fontWeight: item.passed ? FontWeight.w500 : FontWeight.normal,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 class _CameraControls extends StatelessWidget {
   final bool         isCapturing;
@@ -751,7 +1030,8 @@ class _CircleButton extends StatelessWidget {
 }
 
 class _DetectedBadge extends StatelessWidget {
-  const _DetectedBadge();
+  final SmoothedFaceState smoothedState;
+  const _DetectedBadge({required this.smoothedState});
 
   @override
   Widget build(BuildContext context) {
@@ -814,47 +1094,6 @@ class _CornerPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_) => false;
-}
-
-class _StatusChip extends StatelessWidget {
-  final IconData icon;
-  final String   label, value;
-  final Color    valueColor;
-
-  const _StatusChip({
-    required this.icon,
-    required this.label,
-    required this.value,
-    required this.valueColor,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(
-          horizontal: AppColors.s12, vertical: AppColors.s8),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha:0.08),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withValues(alpha:0.12)),
-      ),
-      child: Row(
-        children: [
-          Icon(icon, size: 18, color: AppColors.primary),
-          const SizedBox(width: AppColors.s8),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(label,
-                  style: AppTextStyles.caption()
-                      .copyWith(color: Colors.white60)),
-              Text(value, style: AppTextStyles.label(color: valueColor)),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
 }
 
 class _LoadingView extends StatelessWidget {
