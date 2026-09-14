@@ -121,27 +121,27 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
   }
 
   Widget _buildAppBar(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(
-          horizontal: AppColors.s16, vertical: AppColors.s12),
-      child: Row(
-        children: [
-          _circleButton(
-            icon: Icons.arrow_back,
-            onTap: () =>
-                context.canPop() ? context.pop() : context.go('/products'),
-          ),
-          const Spacer(),
-          _circleButton(icon: Icons.favorite_border, onTap: () {}),
-          const SizedBox(width: AppColors.s8),
-          _circleButton(
-            icon: Icons.shopping_bag_outlined,
-            onTap: () => context.go('/cart'),
-          ),
-        ],
-      ),
-    );
-  }
+  return Padding(
+    padding: const EdgeInsets.symmetric(
+      horizontal: AppColors.s16,
+      vertical: AppColors.s12,
+    ),
+    child: Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        _circleButton(
+          icon: Icons.arrow_back,
+          onTap: () =>
+              context.canPop() ? context.pop() : context.go('/products'),
+        ),
+        _circleButton(
+          icon: Icons.shopping_bag_outlined,
+          onTap: () => context.go('/cart'),
+        ),
+      ],
+    ),
+  );
+}
 
   Widget _circleButton({required IconData icon, required VoidCallback onTap}) {
     return GestureDetector(
@@ -402,6 +402,7 @@ void _showAddedToCartSnackBar(ProductModel product) {
     SnackBar(
       duration: const Duration(seconds: 3),
       behavior: SnackBarBehavior.floating,
+      persist: false,
       backgroundColor: AppColors.textPrimary,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       margin: const EdgeInsets.all(AppColors.s16),

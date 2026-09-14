@@ -25,7 +25,6 @@ class PremiumProductCard extends StatefulWidget {
 
 class _PremiumProductCardState extends State<PremiumProductCard> {
   bool _pressed = false;
-  bool _wishlisted = false;
 
   String _formatPrice(double price) {
     final thousands = (price / 1000).toStringAsFixed(0);
@@ -107,35 +106,7 @@ class _PremiumProductCardState extends State<PremiumProductCard> {
                         style: AppTextStyles.label(color: AppColors.error)),
                   ),
                 ),
-
-              // Wishlist — scale-pop animation on tap.
-              Positioned(
-                top: AppColors.s12,
-                right: AppColors.s12,
-                child: GestureDetector(
-                  onTap: () => setState(() => _wishlisted = !_wishlisted),
-                  child: Container(
-                    width: 32,
-                    height: 32,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.25),
-                      shape: BoxShape.circle,
-                    ),
-                    child: AnimatedScale(
-                      scale: _wishlisted ? 1.15 : 1.0,
-                      duration: const Duration(milliseconds: 200),
-                      curve: Curves.easeOut,
-                      child: Icon(
-                        _wishlisted ? Icons.favorite : Icons.favorite_border,
-                        size: 16,
-                        color: _wishlisted ? AppColors.primary : Colors.white,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-
+             
               // Text block, pinned to bottom of card.
               Positioned(
                 left: AppColors.s12,

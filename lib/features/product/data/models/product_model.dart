@@ -16,7 +16,6 @@ class ProductModel {
   final DateTime? flashSaleEnd;
   final DateTime? expiryDate;
   final DateTime createdAt;
-  // Fields thêm từ BE
   final int? daysUntilExpiry;
   final bool isExpiringSoon;
   final String? ingredients;

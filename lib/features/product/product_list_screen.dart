@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:glow_aura/core/theme/app_theme.dart';
 import 'package:glow_aura/shared/widgets/main_scaffold.dart';
+import 'package:glow_aura/features/cart/cart_viewmodel.dart';
 import 'data/models/product_model.dart';
 import 'product_viewmodel.dart';
 import 'package:glow_aura/shared/widgets/product_image.dart';
@@ -149,7 +150,7 @@ class _ProductListScreenState extends ConsumerState<ProductListScreen> {
 }
 
 // ── App bar ───────────────────────────────────────────────────────────────────
-class _AppBar extends StatelessWidget {
+class _AppBar extends ConsumerWidget {
   final TextEditingController searchController;
   final ValueChanged<String> onSearch;
   final VoidCallback onFilter;
@@ -163,7 +164,9 @@ class _AppBar extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final cartCount = ref.watch(cartTotalQuantityProvider);
+
     return Container(
       padding: const EdgeInsets.fromLTRB(
           AppColors.s16, AppColors.s12, AppColors.s16, AppColors.s8),
@@ -198,7 +201,9 @@ class _AppBar extends StatelessWidget {
                 constraints: const BoxConstraints(),
               ),
               const SizedBox(width: AppColors.s8),
+              // ── Cart icon + badge (số lượng thật từ cartTotalQuantityProvider) ──
               Stack(
+                clipBehavior: Clip.none,
                 children: [
                   IconButton(
                     onPressed: () => context.go('/cart'),
@@ -207,21 +212,25 @@ class _AppBar extends StatelessWidget {
                     padding: EdgeInsets.zero,
                     constraints: const BoxConstraints(),
                   ),
-                  Positioned(
-                    top: 0,
-                    right: 0,
-                    child: Container(
-                      width: 14,
-                      height: 14,
-                      decoration: const BoxDecoration(
-                          color: AppColors.primary, shape: BoxShape.circle),
-                      child: Center(
-                        child: Text('2',
+                  if (cartCount > 0)
+                    Positioned(
+                      top: -2,
+                      right: -2,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 4),
+                        constraints:
+                            const BoxConstraints(minWidth: 16, minHeight: 16),
+                        decoration: const BoxDecoration(
+                            color: AppColors.primary, shape: BoxShape.circle),
+                        child: Center(
+                          child: Text(
+                            cartCount > 99 ? '99+' : '$cartCount',
                             style: AppTextStyles.label(color: Colors.white)
-                                .copyWith(fontSize: 8)),
+                                .copyWith(fontSize: 9),
+                          ),
+                        ),
                       ),
                     ),
-                  ),
                 ],
               ),
             ],
@@ -447,21 +456,6 @@ class _ProductCard extends StatelessWidget {
                                 AppTextStyles.label(color: Colors.white)),
                       ),
                     ),
-                  // Wishlist
-                  Positioned(
-                    top: AppColors.s8,
-                    right: AppColors.s8,
-                    child: Container(
-                      width: 28,
-                      height: 28,
-                      decoration: const BoxDecoration(
-                        color: AppColors.surface,
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(Icons.favorite_border,
-                          size: 14, color: AppColors.primary),
-                    ),
-                  ),
                   // Flash sale badge
                   if (product.isFlashSale)
                     Positioned(

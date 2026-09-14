@@ -2,9 +2,9 @@ import 'dart:convert';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:glow_aura/core/theme/app_theme.dart';
+import 'package:glow_aura/core/network/api_endpoints.dart';
 
-/// Renders a product image from base64 data URI, network URL, or a
-/// branded placeholder if none is available.
+
 class ProductImageWidget extends StatelessWidget {
   final String? imageUrl;
   final double? width;
@@ -25,10 +25,12 @@ class ProductImageWidget extends StatelessWidget {
       return _placeholder();
     }
 
+    // Base64 image
     if (imageUrl!.startsWith('data:image')) {
       try {
         final base64Str = imageUrl!.split(',').last;
         final Uint8List bytes = base64Decode(base64Str);
+
         return ClipRRect(
           borderRadius: borderRadius ?? BorderRadius.zero,
           child: Image.memory(
@@ -44,10 +46,18 @@ class ProductImageWidget extends StatelessWidget {
       }
     }
 
+    // Resolve relative backend URL:
+    // /uploads/products/xxx.jpg
+    // ->
+    // https://glowauraapimongodb-production.up.railway.app/uploads/products/xxx.jpg
+    final resolvedUrl = imageUrl!.startsWith('/')
+        ? '${ApiEndpoints.baseUrl}$imageUrl'
+        : imageUrl!;
+
     return ClipRRect(
       borderRadius: borderRadius ?? BorderRadius.zero,
       child: Image.network(
-        imageUrl!,
+        resolvedUrl,
         width: width,
         height: height,
         fit: BoxFit.cover,
@@ -62,8 +72,11 @@ class ProductImageWidget extends StatelessWidget {
       height: height,
       color: AppColors.primarySubtle,
       child: Center(
-        child: Icon(Icons.inventory_2_outlined,
-            size: (height ?? 120) * 0.4, color: AppColors.primaryTint),
+        child: Icon(
+          Icons.inventory_2_outlined,
+          size: (height ?? 120) * 0.4,
+          color: AppColors.primaryTint,
+        ),
       ),
     );
   }

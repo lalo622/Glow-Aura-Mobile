@@ -13,6 +13,7 @@ import 'package:glow_aura/features/home/widgets/home_hero.dart';
 import 'package:glow_aura/features/product/data/models/product_model.dart';
 import 'package:glow_aura/features/product/product_viewmodel.dart';
 import 'package:glow_aura/features/scan/providers/skin_history_provider.dart';
+import 'package:glow_aura/features/scan/data/models/skin_analysis_history.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -34,7 +35,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final productState = ref.watch(productViewModelProvider);
     final user = ref.watch(authViewModelProvider).user;
     final firstName = user?.fullName.split(' ').last ?? '';
-    final recentScansAsync = ref.watch(recentScansProvider(2));
+    final recentScansAsync = ref.watch(recentScansProvider(5));
     final heroScore = recentScansAsync.maybeWhen(
     data: (r) => r.items.isNotEmpty ? r.items.first.overallScore : 0,
     orElse: () => 0,
@@ -79,8 +80,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: AppColors.s16),
                 child: SectionHeader(
-                  title: 'Gợi ý cho bạn',
-                  subtitle: 'Dựa trên phân tích da gần nhất',
+                  title: 'Sản phẩm nổi bật',
+                  subtitle: 'Được nhiều người lựa chọn',
                   actionLabel: 'Xem tất cả',
                   onActionTap: () => context.go('/products'),
                 ),
@@ -104,7 +105,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               ),
             ),
             const SizedBox(height: AppColors.s16),
-            const _EntranceFade(delayMs: 180, child:  _InsightRow()),
+            _EntranceFade(delayMs: 180, child:  _InsightRow(scansAsync: recentScansAsync)),
             const SizedBox(height: AppColors.s32),
 
             const _EntranceFade(delayMs: 220, child:  _EditorialPromo()),
@@ -186,21 +187,28 @@ class _EntranceFadeState extends State<_EntranceFade>
 }
 
 // ── Categories ────────────────────────────────────────────────────────────
-class _CategoriesRow extends StatelessWidget {
+class _CategoriesRow extends ConsumerWidget {
   const _CategoriesRow();
-  static const _categories = ['Dưỡng da', 'Trang điểm', 'Mắt', 'Sale', 'Mới'];
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final categories = ref.watch(productViewModelProvider).categories;
+
+    if (categories.isEmpty) return const SizedBox(height: 36);
+
     return SizedBox(
       height: 36,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
-        itemCount: _categories.length,
+        itemCount: categories.length,
         separatorBuilder: (_, __) => const SizedBox(width: AppColors.s8),
         itemBuilder: (_, i) => CategoryChip(
-          label: _categories[i],
-          onTap: () => context.go('/products'),
+          label: categories[i],
+          onTap: () {
+            ref.read(productViewModelProvider.notifier)
+                .selectCategory(categories[i]);
+            context.go('/products');
+          },
         ),
       ),
     );
@@ -261,56 +269,128 @@ class _ProductSkeleton extends StatelessWidget {
 }
 
 // ── Insight row ───────────────────────────────────────────────────────────
-class _InsightRow extends StatelessWidget {
-  const _InsightRow();
+    class _InsightRow extends StatelessWidget {
+      final AsyncValue<SkinAnalysisHistoryResponse> scansAsync;
+      const _InsightRow({required this.scansAsync});
 
-  @override
-  Widget build(BuildContext context) {
-    final items = [
-      (
-        icon: Icons.water_drop_outlined,
-        title: 'Độ ẩm & Dầu',
-        time: 'Hôm nay, 08:30',
-        status: 'Tốt',
-        color: AppColors.success,
-      ),
-      (
-        icon: Icons.blur_on,
-        title: 'Lỗ chân lông',
-        time: 'Hôm qua, 21:15',
-        status: 'Cần chú ý',
-        color: AppColors.warning,
-      ),
-      (
-        icon: Icons.wb_sunny_outlined,
-        title: 'Bảo vệ da',
-        time: '2 ngày trước',
-        status: 'Tốt',
-        color: AppColors.success,
-      ),
-    ];
+      @override
+      Widget build(BuildContext context) {
+        return scansAsync.when(
+          loading: () => _skeleton(),
+          error: (_, __) => _empty(),
+          data: (res) {
+            final items = res.items.take(3).toList();
+            if (items.isEmpty) return _empty();
+            return SizedBox(
+              height: 156,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: AppColors.s16),
+                itemCount: items.length,
+                separatorBuilder: (_, __) => const SizedBox(width: AppColors.s12),
+                itemBuilder: (_, i) {
+                  final item = items[i];
+                  final sev = _severityInfo(item.severity);
+                  return InsightCard(
+                    icon: _skinTypeIcon(item.detectedSkinType),
+                    title: _skinTypeLabel(item.detectedSkinType),
+                    time: _formatTime(item.capturedAt),
+                    status: sev.label,
+                    statusColor: sev.color,
+                  );
+                },
+              ),
+            );
+          },
+        );
+      }
 
-    return SizedBox(
-      height: 156,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: AppColors.s16),
-        itemCount: items.length,
-        separatorBuilder: (_, __) => const SizedBox(width: AppColors.s12),
-        itemBuilder: (_, i) {
-          final it = items[i];
-          return InsightCard(
-            icon: it.icon,
-            title: it.title,
-            time: it.time,
-            status: it.status,
-            statusColor: it.color,
+      Widget _skeleton() => SizedBox(
+            height: 156,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: AppColors.s16),
+              itemCount: 3,
+              separatorBuilder: (_, __) => const SizedBox(width: AppColors.s12),
+              itemBuilder: (_, __) => Container(
+                width: 140,
+                decoration: BoxDecoration(
+                  color: AppColors.border,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+              ),
+            ),
           );
-        },
-      ),
-    );
-  }
-}
+
+      Widget _empty() => SizedBox(
+            height: 156,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: AppColors.s16),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text('Chưa có phân tích nào', style: AppTextStyles.caption()),
+              ),
+            ),
+          );
+
+      ({String label, Color color}) _severityInfo(String severity) {
+        switch (severity.toLowerCase()) {
+          case 'mild':
+            return (label: 'Nhẹ', color: AppColors.success);
+          case 'moderate':
+            return (label: 'Trung bình', color: AppColors.warning);
+          case 'severe':
+            return (label: 'Nặng', color: AppColors.error);
+          default:
+            return (label: 'Chưa rõ', color: AppColors.textTertiary);
+        }
+      }
+
+      String _skinTypeLabel(String type) {
+        switch (type.toLowerCase()) {
+          case 'acne':
+            return 'Da mụn';
+          case 'oily':
+            return 'Da dầu';
+          case 'dry':
+            return 'Da khô';
+          case 'combination':
+            return 'Da hỗn hợp';
+          case 'sensitive':
+            return 'Da nhạy cảm';
+          case 'normal':
+            return 'Da thường';
+          default:
+            return 'Phân tích da';
+        }
+      }
+
+      IconData _skinTypeIcon(String type) {
+        switch (type.toLowerCase()) {
+          case 'acne':
+            return Icons.blur_on;
+          case 'oily':
+            return Icons.water_drop_outlined;
+          case 'dry':
+            return Icons.grain;
+          case 'sensitive':
+            return Icons.warning_amber_outlined;
+          default:
+            return Icons.face_retouching_natural_outlined;
+        }
+      }
+
+      String _formatTime(DateTime dt) {
+        final now = DateTime.now();
+        final diffDays = DateTime(now.year, now.month, now.day)
+            .difference(DateTime(dt.year, dt.month, dt.day))
+            .inDays;
+        final hm = '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+        if (diffDays == 0) return 'Hôm nay, $hm';
+        if (diffDays == 1) return 'Hôm qua, $hm';
+        return '$diffDays ngày trước';
+      }
+    }
 
 // ── Editorial promo — landing-page style block instead of a flat banner ──
 class _EditorialPromo extends StatelessWidget {
