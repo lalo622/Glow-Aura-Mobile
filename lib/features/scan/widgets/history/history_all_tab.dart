@@ -5,22 +5,59 @@ import 'history_format_utils.dart';
 import 'history_scan_card.dart';
 import 'history_stat_card.dart';
 import 'score_trend_chart.dart';
+import 'history_scan_detail_sheet.dart';
 
-class HistoryAllTab extends StatelessWidget {
+class HistoryAllTab extends StatefulWidget {
   final List<SkinAnalysisHistoryItem> items;
   final Map<String, int> deltaMap;
   final Future<void> Function() onRefresh;
+  final bool hasMore;
+  final bool isLoadingMore;
+  final VoidCallback onLoadMore;
 
   const HistoryAllTab({
     super.key,
     required this.items,
     required this.deltaMap,
     required this.onRefresh,
+    this.hasMore = false,
+    this.isLoadingMore = false,
+    required this.onLoadMore,
   });
+
+  @override
+  State<HistoryAllTab> createState() => _HistoryAllTabState();
+}
+
+class _HistoryAllTabState extends State<HistoryAllTab> {
+  final _scrollController = ScrollController();
+
+  static const _loadMoreTriggerOffset = 300.0;
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController.addListener(_onScroll);
+  }
+
+  @override
+  void dispose() {
+    _scrollController.removeListener(_onScroll);
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _onScroll() {
+    if (!widget.hasMore || widget.isLoadingMore) return;
+    final position = _scrollController.position;
+    if (position.pixels >= position.maxScrollExtent - _loadMoreTriggerOffset) {
+      widget.onLoadMore();
+    }
+  }
 
   Map<String, List<SkinAnalysisHistoryItem>> _groupByDate() {
     final map = <String, List<SkinAnalysisHistoryItem>>{};
-    for (final item in items) {
+    for (final item in widget.items) {
       final key = isToday(item.capturedAt)
           ? 'HÔM NAY'
           : 'THÁNG ${item.capturedAt.month}, ${item.capturedAt.year}';
@@ -28,13 +65,43 @@ class HistoryAllTab extends StatelessWidget {
     }
     return map;
   }
+    void _showDetail(
+    BuildContext context,
+    SkinAnalysisHistoryItem item,
+  ) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => HistoryScanDetailSheet(item: item),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
+    final items = widget.items;
+
+    if (items.isEmpty) {
+      return RefreshIndicator(
+        onRefresh: widget.onRefresh,
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          children: const [
+            SizedBox(height: 120),
+            Center(
+              child: Text(
+                'Chưa có lịch sử quét da nào',
+                style: TextStyle(color: Colors.white60),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
     final groups = _groupByDate();
-    final avgScore = items.isEmpty
-        ? 0
-        : (items.map((e) => e.overallScore).reduce((a, b) => a + b) /
+    final avgScore =
+        (items.map((e) => e.overallScore).reduce((a, b) => a + b) /
                 items.length)
             .round();
     final lastScan = items.first.capturedAt;
@@ -43,16 +110,15 @@ class HistoryAllTab extends StatelessWidget {
         : '${lastScan.day}/${lastScan.month}/${lastScan.year}';
 
     return RefreshIndicator(
-      onRefresh: onRefresh,
+      onRefresh: widget.onRefresh,
       child: SingleChildScrollView(
+        controller: _scrollController,
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.all(AppColors.s16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const SizedBox(height: AppColors.s16),
-
-            // ── Stats summary ─────────────────────────────────────────────
             Row(
               children: [
                 Expanded(
@@ -86,11 +152,29 @@ class HistoryAllTab extends StatelessWidget {
                     padding: const EdgeInsets.only(bottom: AppColors.s8),
                     child: HistoryScanCard(
                       item: item,
-                      delta: deltaMap[item.sessionId] ?? 0,
+                      delta: widget.deltaMap[item.sessionId] ?? 0,
+                        onTap: () => _showDetail(context, item),
                     ),
                   )),
               const SizedBox(height: AppColors.s16),
             ],
+
+            // ── [MỚI] Loading indicator cuối list khi đang tải thêm trang ──
+            if (widget.isLoadingMore)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: AppColors.s16),
+                child: Center(
+                  child: SizedBox(
+                    width: 24,
+                    height: 24,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: AppColors.primary,
+                    ),
+                  ),
+                ),
+              ),
+
             const SizedBox(height: 100),
           ],
         ),

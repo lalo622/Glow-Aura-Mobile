@@ -1,6 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
-
+import '../../../../core/network/api_endpoints.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:glow_aura/core/theme/app_theme.dart';
@@ -692,102 +692,172 @@ class _RecommendedProductsList extends StatelessWidget {
 
 class _ProductCard extends StatelessWidget {
   final RecommendedProduct product;
-  const _ProductCard({required this.product});
+
+  const _ProductCard({
+    required this.product,
+  });
 
   Widget _buildImage() {
     if (product.imageUrl.isEmpty) {
       return Container(
-        width: 64, height: 64,
+        width: 64,
+        height: 64,
         color: AppColors.primaryTint,
-        child: const Icon(Icons.image_not_supported_outlined,
-            color: AppColors.textSecondary),
+        child: const Icon(
+          Icons.image_not_supported_outlined,
+          color: AppColors.textSecondary,
+        ),
       );
     }
+
     if (product.isBase64) {
       try {
         final base64Part = product.imageUrl.split(',').last;
         final bytes = base64Decode(base64Part);
-        return Image.memory(bytes, width: 64, height: 64, fit: BoxFit.cover,
-            errorBuilder: (_, __, ___) => Container(
-                  width: 64, height: 64,
-                  color: AppColors.primaryTint,
-                  child: const Icon(Icons.broken_image_outlined,
-                      color: AppColors.textSecondary),
-                ));
+
+        return Image.memory(
+          bytes,
+          width: 64,
+          height: 64,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => Container(
+            width: 64,
+            height: 64,
+            color: AppColors.primaryTint,
+            child: const Icon(
+              Icons.broken_image_outlined,
+              color: AppColors.textSecondary,
+            ),
+          ),
+        );
       } catch (_) {
         return Container(
-          width: 64, height: 64,
+          width: 64,
+          height: 64,
           color: AppColors.primaryTint,
-          child: const Icon(Icons.broken_image_outlined,
-              color: AppColors.textSecondary),
+          child: const Icon(
+            Icons.broken_image_outlined,
+            color: AppColors.textSecondary,
+          ),
         );
       }
     }
-    // fallback: URL thường
-    return Image.network(product.imageUrl, width: 64, height: 64,
-        fit: BoxFit.cover,
-        errorBuilder: (_, __, ___) => Container(
-              width: 64, height: 64,
-              color: AppColors.primaryTint,
-              child: const Icon(Icons.broken_image_outlined,
-                  color: AppColors.textSecondary),
-            ));
-  }
+
+    final imageUrl = product.imageUrl.startsWith('http')
+    ? product.imageUrl
+    : '${ApiEndpoints.baseUrl}${product.imageUrl}';
+
+  return Image.network(
+    imageUrl,
+    width: 64,
+    height: 64,
+    fit: BoxFit.cover,
+    errorBuilder: (_, __, ___) => Container(
+      width: 64,
+      height: 64,
+      color: AppColors.primaryTint,
+      child: const Icon(
+        Icons.broken_image_outlined,
+        color: AppColors.textSecondary,
+      ),
+    ),
+  );
+}
 
   String _formatPrice(int price) {
     final s = price.toString();
     final buffer = StringBuffer();
+
     for (int i = 0; i < s.length; i++) {
       final posFromEnd = s.length - i;
       buffer.write(s[i]);
-      if (posFromEnd > 1 && posFromEnd % 3 == 1) buffer.write('.');
+
+      if (posFromEnd > 1 && posFromEnd % 3 == 1) {
+        buffer.write('.');
+      }
     }
+
     return '${buffer}đ';
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(AppColors.s12),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(8),
-            child: _buildImage(),
-          ),
-          const SizedBox(width: AppColors.s12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(product.brand,
-                    style: AppTextStyles.caption(color: AppColors.textSecondary)),
-                Text(product.name,
-                    style: AppTextStyles.body(color: AppColors.textPrimary)
-                        .copyWith(fontWeight: FontWeight.w600),
-                    maxLines: 2, overflow: TextOverflow.ellipsis),
-                const SizedBox(height: AppColors.s4),
-                Text(_formatPrice(product.price),
-                    style: AppTextStyles.body(color: AppColors.primary)
-                        .copyWith(fontWeight: FontWeight.w600)),
-                if (product.matchReason.isNotEmpty) ...[
-                  const SizedBox(height: AppColors.s4),
-                  Text(product.matchReason,
-                      style: AppTextStyles.caption(color: AppColors.textSecondary),
-                      maxLines: 2, overflow: TextOverflow.ellipsis),
-                ],
-              ],
+ @override
+Widget build(BuildContext context) {
+  return Material(
+    color: Colors.transparent,
+    child: InkWell(
+      borderRadius: BorderRadius.circular(12),
+      onTap: () {
+        context.push('/product-detail/${product.id}');
+      },
+      child: Container(
+        padding: const EdgeInsets.all(AppColors.s12),
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppColors.border),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: _buildImage(),
             ),
-          ),
-        ],
+            const SizedBox(width: AppColors.s12),
+
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    product.brand,
+                    style: AppTextStyles.caption(
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                  Text(
+                    product.name,
+                    style: AppTextStyles.body(
+                      color: AppColors.textPrimary,
+                    ).copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: AppColors.s4),
+                  Text(
+                    _formatPrice(product.price),
+                    style: AppTextStyles.body(
+                      color: AppColors.primary,
+                    ).copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  if (product.matchReason.isNotEmpty) ...[
+                    const SizedBox(height: AppColors.s4),
+                    Text(
+                      product.matchReason,
+                      style: AppTextStyles.caption(
+                        color: AppColors.textSecondary,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ],
+              ),
+            ),
+
+            const Icon(
+              Icons.chevron_right,
+              color: AppColors.textSecondary,
+            ),
+          ],
+        ),
       ),
-    );
+    ),
+  );
   }
 }
 

@@ -197,6 +197,7 @@ class RecommendedProduct {
     required this.matchReason,
   });
 
+
   bool get isBase64 => imageUrl.startsWith('data:image');
 
   factory RecommendedProduct.fromJson(Map<String, dynamic> json) {

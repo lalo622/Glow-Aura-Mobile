@@ -18,21 +18,35 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
 
-  // Tháng đang được chọn để xem (dùng chung cho tab Tuần & Tháng)
+  // Tháng được chọn để xem
   DateTime _selectedMonth =
       DateTime(DateTime.now().year, DateTime.now().month);
-  // Tuần đang chọn (index trong tháng đã chọn), reset khi đổi tháng
+  // Tuần được chọn để xem
   int _selectedWeekIndex = 0;
+  int _loadGeneration = 0;
+  bool _isLoadingRangeData = false;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+    if (!mounted) return;
+
+    final state = ref.read(historyPagingProvider);
+
+    if (!state.isLoading) {
+      ref.read(historyPagingProvider.notifier).refresh();
+    }
+
+    _ensureMonthLoaded(_selectedMonth);
+  });
   }
 
   @override
   void dispose() {
     _tabController.dispose();
+    _loadGeneration++;
     super.dispose();
   }
 
@@ -51,17 +65,75 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen>
     return weeks;
   }
 
+  DateTimeRange _monthRange(DateTime month) {
+    final daysInMonth = DateTime(month.year, month.month + 1, 0).day;
+    return DateTimeRange(
+      start: DateTime(month.year, month.month, 1),
+      end: DateTime(month.year, month.month, daysInMonth, 23, 59, 59),
+    );
+  }
+
   void _changeMonth(int delta) {
     setState(() {
       _selectedMonth =
           DateTime(_selectedMonth.year, _selectedMonth.month + delta);
       _selectedWeekIndex = 0;
     });
+    _ensureMonthLoaded(_selectedMonth);
+  }
+
+  Future<void> _ensureMonthLoaded(DateTime month) async {
+    final myGeneration = ++_loadGeneration;
+    final range = _monthRange(month);
+    final notifier = ref.read(historyPagingProvider.notifier);
+
+    if (mounted) setState(() => _isLoadingRangeData = true);
+
+    try {
+      while (mounted && myGeneration == _loadGeneration) {
+        final state = ref.read(historyPagingProvider);
+
+        if (state.isLoading || state.isLoadingMore) {
+          await Future.delayed(const Duration(milliseconds: 100));
+          continue;
+        }
+
+        if (state.items.isEmpty) {
+          if (!state.hasMore) break; // thực sự không có dữ liệu nào cả
+          await notifier.loadMore();
+          continue;
+        }
+
+        final oldestLoaded = state.items
+            .map((e) => e.capturedAt)
+            .reduce((a, b) => a.isBefore(b) ? a : b);
+
+        if (oldestLoaded.isBefore(range.start)) break; // đã phủ đủ tháng
+        if (!state.hasMore) break; // hết trang, dữ liệu chỉ có bấy nhiêu
+
+        await notifier.loadMore();
+      }
+    } finally {
+      if (mounted && myGeneration == _loadGeneration) {
+        setState(() => _isLoadingRangeData = false);
+      }
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final historyAsync = ref.watch(skinAnalysisHistoryProvider);
+    final pagingState = ref.watch(historyPagingProvider);
+    final notifier = ref.read(historyPagingProvider.notifier);
+    ref.listen<HistoryPagingState>(historyPagingProvider, (previous, next) {
+      if (next.error != null &&
+          next.error != previous?.error &&
+          next.items.isNotEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+              content: Text('Không tải được thêm dữ liệu, thử lại sau.')),
+        );
+      }
+    });
 
     return MainScaffold(
       currentIndex: 1,
@@ -118,128 +190,156 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen>
 
             // ── Tab content ───────────────────────────────────────────────
             Expanded(
-              child: historyAsync.when(
-                loading: () =>
-                    const Center(child: CircularProgressIndicator()),
-                error: (err, _) => HistoryErrorState(
-                  error: err,
-                  onRetry: () => ref.invalidate(skinAnalysisHistoryProvider),
-                ),
-                data: (response) {
-                  final items = [...response.items]
-                    ..sort((a, b) => b.capturedAt.compareTo(a.capturedAt));
-
-                  if (items.isEmpty) {
-                    return HistoryEmptyState(
-                      message: 'Chưa có dữ liệu quét nào',
-                      onRefresh: () =>
-                          ref.refresh(skinAnalysisHistoryProvider.future),
-                    );
-                  }
-
-                  // Delta = chênh lệch điểm so với lần quét liền trước
-                  final deltaMap = <String, int>{};
-                  for (var i = 0; i < items.length; i++) {
-                    final delta = (i + 1 < items.length)
-                        ? items[i].overallScore - items[i + 1].overallScore
-                        : 0;
-                    deltaMap[items[i].sessionId] = delta;
-                  }
-
-                  final monthlyItems = items
-                      .where((i) =>
-                          i.capturedAt.year == _selectedMonth.year &&
-                          i.capturedAt.month == _selectedMonth.month)
-                      .toList();
-
-                  final weeksInSelectedMonth = _weeksInMonth(_selectedMonth);
-                  final safeWeekIndex = _selectedWeekIndex.clamp(
-                      0, weeksInSelectedMonth.length - 1);
-                  final selectedWeekRange =
-                      weeksInSelectedMonth[safeWeekIndex];
-                  final weeklyItems = items
-                      .where((i) =>
-                          !i.capturedAt.isBefore(selectedWeekRange.start) &&
-                          !i.capturedAt.isAfter(selectedWeekRange.end))
-                      .toList();
-
-                  Future<void> onRefresh() =>
-                      ref.refresh(skinAnalysisHistoryProvider.future);
-
-                  return TabBarView(
-                    controller: _tabController,
-                    children: [
-                      // ── Tab Tất cả ─────────────────────────────────────
-                      HistoryAllTab(
-                        items: items,
-                        deltaMap: deltaMap,
-                        onRefresh: onRefresh,
-                      ),
-
-                      // ── Tab Hàng tuần ──────────────────────────────────
-                      Column(
-                        children: [
-                          Padding(
-                            padding: const EdgeInsets.all(AppColors.s16),
-                            child: Column(
-                              children: [
-                                _MonthPicker(
-                                  month: _selectedMonth,
-                                  onChange: _changeMonth,
-                                ),
-                                const SizedBox(height: AppColors.s12),
-                                _WeekChips(
-                                  weeks: weeksInSelectedMonth,
-                                  selectedIndex: safeWeekIndex,
-                                  onSelect: (i) =>
-                                      setState(() => _selectedWeekIndex = i),
-                                ),
-                              ],
-                            ),
-                          ),
-                          Expanded(
-                            child: weeklyItems.isEmpty
-                                ? HistoryEmptyState(
-                                    message: 'Không có dữ liệu quét tuần này',
-                                    onRefresh: onRefresh)
-                                : HistoryAllTab(
-                                    items: weeklyItems,
-                                    deltaMap: deltaMap,
-                                    onRefresh: onRefresh),
-                          ),
-                        ],
-                      ),
-
-                      // ── Tab Hàng tháng ─────────────────────────────────
-                      Column(
-                        children: [
-                          Padding(
-                            padding: const EdgeInsets.all(AppColors.s16),
-                            child: _MonthPicker(
-                              month: _selectedMonth,
-                              onChange: _changeMonth,
-                            ),
-                          ),
-                          Expanded(
-                            child: monthlyItems.isEmpty
-                                ? HistoryEmptyState(
-                                    message: 'Không có dữ liệu quét tháng này',
-                                    onRefresh: onRefresh)
-                                : HistoryAllTab(
-                                    items: monthlyItems,
-                                    deltaMap: deltaMap,
-                                    onRefresh: onRefresh),
-                          ),
-                        ],
-                      ),
-                    ],
-                  );
-                },
-              ),
+              child: _buildContent(pagingState, notifier),
             ),
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildContent(
+      HistoryPagingState pagingState, HistoryPagingNotifier notifier) {
+    if (pagingState.items.isEmpty && pagingState.isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    final error = pagingState.error;
+    if (pagingState.items.isEmpty && error != null) {
+      return HistoryErrorState(
+        error: error,
+        onRetry: notifier.refresh,
+      );
+    }
+
+    if (pagingState.items.isEmpty) {
+      return HistoryEmptyState(
+        message: 'Chưa có dữ liệu quét nào',
+        onRefresh: notifier.refresh,
+      );
+    }
+
+    final items = [...pagingState.items]
+      ..sort((a, b) => b.capturedAt.compareTo(a.capturedAt));
+
+    // Delta = chênh lệch điểm so với lần quét liền trước.
+    final deltaMap = <String, int>{};
+    for (var i = 0; i < items.length; i++) {
+      final delta = (i + 1 < items.length)
+          ? items[i].overallScore - items[i + 1].overallScore
+          : 0;
+      deltaMap[items[i].sessionId] = delta;
+    }
+
+    final monthRange = _monthRange(_selectedMonth);
+    final monthlyItems = items
+        .where((i) =>
+            !i.capturedAt.isBefore(monthRange.start) &&
+            !i.capturedAt.isAfter(monthRange.end))
+        .toList();
+
+    final weeksInSelectedMonth = _weeksInMonth(_selectedMonth);
+    final safeWeekIndex =
+        _selectedWeekIndex.clamp(0, weeksInSelectedMonth.length - 1);
+    final selectedWeekRange = weeksInSelectedMonth[safeWeekIndex];
+    final weeklyItems = items
+        .where((i) =>
+            !i.capturedAt.isBefore(selectedWeekRange.start) &&
+            !i.capturedAt.isAfter(selectedWeekRange.end))
+        .toList();
+
+    return TabBarView(
+      controller: _tabController,
+      children: [
+        // ── Tab Tất cả — infinite scroll tự nhiên qua toàn bộ lịch sử ────
+        HistoryAllTab(
+          items: items,
+          deltaMap: deltaMap,
+          onRefresh: notifier.refresh,
+          hasMore: pagingState.hasMore,
+          isLoadingMore: pagingState.isLoadingMore,
+          onLoadMore: () => notifier.loadMore(),
+        ),
+
+        // ── Tab Hàng tuần ─────────────────────────────────────────────
+        Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(AppColors.s16),
+              child: Column(
+                children: [
+                  _MonthPicker(month: _selectedMonth, onChange: _changeMonth),
+                  const SizedBox(height: AppColors.s12),
+                  _WeekChips(
+                    weeks: weeksInSelectedMonth,
+                    selectedIndex: safeWeekIndex,
+                    onSelect: (i) => setState(() => _selectedWeekIndex = i),
+                  ),
+                ],
+              ),
+            ),
+            if (_isLoadingRangeData)
+              const Padding(
+                padding: EdgeInsets.only(bottom: AppColors.s8),
+                child: LinearProgressIndicator(
+                  minHeight: 2,
+                  color: AppColors.primary,
+                ),
+              ),
+            Expanded(
+              child: weeklyItems.isEmpty
+                  ? (_isLoadingRangeData
+                      ? const Center(child: CircularProgressIndicator())
+                      : HistoryEmptyState(
+                          message: 'Không có dữ liệu quét tuần này',
+                          onRefresh: () => _ensureMonthLoaded(_selectedMonth)))
+                  : HistoryAllTab(
+                      items: weeklyItems,
+                      deltaMap: deltaMap,
+                      onRefresh: notifier.refresh,
+                      hasMore: false,
+                      isLoadingMore: _isLoadingRangeData,
+                      onLoadMore: () {},
+                    ),
+            ),
+          ],
+        ),
+
+        // ── Tab Hàng tháng ─────────────────────────────────────────────
+        Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(AppColors.s16),
+              child:
+                  _MonthPicker(month: _selectedMonth, onChange: _changeMonth),
+            ),
+            if (_isLoadingRangeData)
+              const Padding(
+                padding: EdgeInsets.only(bottom: AppColors.s8),
+                child: LinearProgressIndicator(
+                  minHeight: 2,
+                  color: AppColors.primary,
+                ),
+              ),
+            Expanded(
+              child: monthlyItems.isEmpty
+                  ? (_isLoadingRangeData
+                      ? const Center(child: CircularProgressIndicator())
+                      : HistoryEmptyState(
+                          message: 'Không có dữ liệu quét tháng này',
+                          onRefresh: () => _ensureMonthLoaded(_selectedMonth)))
+                  : HistoryAllTab(
+                      items: monthlyItems,
+                      deltaMap: deltaMap,
+                      onRefresh: notifier.refresh,
+                      hasMore: false,
+                      isLoadingMore: _isLoadingRangeData,
+                      onLoadMore: () {},
+                    ),
+            ),
+          ],
+        ),
+      ],
     );
   }
 }
