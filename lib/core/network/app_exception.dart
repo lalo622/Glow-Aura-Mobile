@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import '../network/api_endpoints.dart'; 
 
 enum AppErrorType {
   network,      // Mất mạng, timeout
@@ -38,6 +39,7 @@ class AppException implements Exception {
         return AppException._fromStatusCode(
           e.response?.statusCode,
           e.response?.data,
+          isLoginRequest: e.requestOptions.path == ApiEndpoints.login,
         );
       default:
         return AppException(
@@ -47,13 +49,24 @@ class AppException implements Exception {
     }
   }
 
-  factory AppException._fromStatusCode(int? code, dynamic data) {
+  factory AppException._fromStatusCode(
+    int? code,
+    dynamic data, {
+    bool isLoginRequest = false,
+  }) {
     String? beMessage;
     if (data is Map<String, dynamic>) {
       beMessage = data['message'] as String?;
     }
 
     if (code == 401) {
+      if (isLoginRequest) {
+        return AppException(
+          type: AppErrorType.unauthorized,
+          message: beMessage ?? 'Email hoặc mật khẩu không chính xác.',
+          statusCode: 401,
+        );
+      }
       return const AppException(
         type: AppErrorType.unauthorized,
         message: 'Phiên đăng nhập đã hết hạn.',

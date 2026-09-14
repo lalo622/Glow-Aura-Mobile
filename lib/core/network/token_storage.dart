@@ -1,5 +1,5 @@
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-
+import 'dart:convert';
 class TokenStorage {
  static const _storage = FlutterSecureStorage(
   aOptions: AndroidOptions(encryptedSharedPreferences: true), 
@@ -25,4 +25,20 @@ class TokenStorage {
     await _storage.delete(key: _accessKey);
     await _storage.delete(key: _refreshKey);
   }
+  static Future<String?> getUserId() async {
+  final token = await getAccessToken();
+  if (token == null) return null;
+
+  final parts = token.split('.');
+  if (parts.length != 3) return null;
+
+  final payload = utf8.decode(
+    base64Url.decode(base64Url.normalize(parts[1])),
+  );
+
+  final claims = jsonDecode(payload) as Map<String, dynamic>;
+
+  return claims[
+      'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier'];
+}
 }

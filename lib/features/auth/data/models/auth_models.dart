@@ -80,6 +80,7 @@ class UserModel {
   final String fullName;
   final String role;
   final String vipLevel;
+  final String? phoneNumber;
 
   const UserModel({
     required this.id,
@@ -87,6 +88,7 @@ class UserModel {
     required this.fullName,
     required this.role,
     required this.vipLevel,
+    this.phoneNumber
   });
 
   factory UserModel.fromJson(Map<String, dynamic> json) => UserModel(
@@ -95,6 +97,7 @@ class UserModel {
         fullName: json['fullName'] as String,
         role: json['role'] as String,
         vipLevel: json['vipLevel'] as String,
+        phoneNumber: json['phoneNumber'] as String?,
       );
 }
 

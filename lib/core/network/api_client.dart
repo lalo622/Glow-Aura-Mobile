@@ -51,10 +51,15 @@ class _AuthInterceptor extends Interceptor {
     ErrorInterceptorHandler handler,
   ) async {
     final is401 = err.response?.statusCode == 401;
-    final isNotRefreshEndpoint =
-        !err.requestOptions.path.contains('refresh-token');
+    final path = err.requestOptions.path;
 
-    if (is401 && isNotRefreshEndpoint && !_isRefreshing) {
+    // Endpoint refresh-token
+    final isRefreshEndpoint = path.contains('refresh-token');
+    final isLoginEndpoint = path == ApiEndpoints.login;
+    final shouldTryRefresh =
+        is401 && !isRefreshEndpoint && !isLoginEndpoint && !_isRefreshing;
+
+    if (shouldTryRefresh) {
       _isRefreshing = true;
       try {
         final newAccessToken = await _tryRefresh();

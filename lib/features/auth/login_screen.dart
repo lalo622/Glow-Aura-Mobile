@@ -5,6 +5,7 @@ import 'package:glow_aura/core/theme/app_theme.dart';
 import 'package:glow_aura/features/auth/auth_viewmodel.dart';
 import 'package:glow_aura/shared/widgets/shared_widgets.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:glow_aura/features/scan/providers/skin_history_provider.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -25,7 +26,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     if (!_formKey.currentState!.validate()) return;
     final ok = await ref.read(authViewModelProvider.notifier)
         .login(email: _emailCtrl.text.trim(), password: _passCtrl.text);
-    if (ok && mounted) context.go('/home');
+    if (ok && mounted) {
+      ref.invalidate(historyPagingProvider);
+      context.go('/home');
+    }
   }
 
   @override
@@ -76,17 +80,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 ),
                 const SizedBox(height: 8),
 
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: TextButton(
-                    onPressed: () {},
-                    style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: Size.zero),
-                    child: Text('Quên mật khẩu?', style: GoogleFonts.dmSans(
-                      fontSize: 13, color: AppColors.textSecondary)),
-                  ),
-                ),
-                const SizedBox(height: 24),
-
                 GlowButton(label: 'Đăng nhập', isLoading: state.isLoading, onPressed: _onLogin),
                 const SizedBox(height: 24),
 
@@ -98,7 +91,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     logoColor: const Color(0xFFEA4335),
                     onPressed: () async {
                     final ok = await ref.read(authViewModelProvider.notifier).loginWithGoogle();
-                    if (ok && mounted) context.go('/home');
+                    if (ok && mounted) {
+                    ref.invalidate(historyPagingProvider);
+                    context.go('/home');
+                  }
                   },
                   )),
                   const SizedBox(width: 12),

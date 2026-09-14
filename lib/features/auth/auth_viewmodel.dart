@@ -10,6 +10,7 @@ class UserEntity {
   final String email;
   final String role;
   final String vipLevel;
+  final String? phoneNumber;
 
   const UserEntity({
     required this.id,
@@ -17,15 +18,17 @@ class UserEntity {
     required this.email,
     required this.role,
     required this.vipLevel,
+    this.phoneNumber,
   });
 
   factory UserEntity.fromModel(UserModel model) => UserEntity(
-        id: model.id,
-        fullName: model.fullName,
-        email: model.email,
-        role: model.role,
-        vipLevel: model.vipLevel,
-      );
+    id: model.id,
+    fullName: model.fullName,
+    email: model.email,
+    role: model.role,
+    vipLevel: model.vipLevel,
+    phoneNumber: model.phoneNumber,
+  );
 }
 
 // ─── State ────────────────────────────────────────────────────────────────────

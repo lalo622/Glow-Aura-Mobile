@@ -4,7 +4,7 @@ import '../../../../core/network/api_endpoints.dart';
 import '../../../../core/network/safe_call.dart';
 import '../../../../core/network/token_storage.dart';
 import '../data/models/auth_models.dart';
-
+import 'package:flutter/foundation.dart';
 class AuthService {
   final Dio _dio = ApiClient.instance.dio;
 
@@ -62,19 +62,21 @@ class AuthService {
     final token = await TokenStorage.getAccessToken();
     return token != null;
   }
-  Future<SafeResult<AuthResponse>> googleLogin(GoogleLoginRequest request) =>
-    safeCall(() async {
-      final response = await _dio.post(
-        ApiEndpoints.googleLogin,
-        data: request.toJson(),
+  Future<SafeResult<AuthResponse>> googleLogin(
+    GoogleLoginRequest request) =>
+  safeCall(() async {
+    final response = await _dio.post(
+      ApiEndpoints.googleLogin,
+      data: request.toJson(),
+    );
+    final result = AuthResponse.fromJson(response.data);
+    if (result.isSuccess && result.token != null) {
+      await TokenStorage.saveTokens(
+        accessToken: result.token!.accessToken,
+        refreshToken: result.token!.refreshToken,
       );
-      final result = AuthResponse.fromJson(response.data);
-      if (result.isSuccess && result.token != null) {
-        await TokenStorage.saveTokens(
-          accessToken: result.token!.accessToken,
-          refreshToken: result.token!.refreshToken,
-        );
-      }
-      return result;
-    });
+    }
+
+    return result;
+  });
 }
