@@ -111,12 +111,8 @@ class _PayOSWebViewScreenState extends State<PayOSWebViewScreen> {
     final rawOrderCode = uri.queryParameters['orderCode'];
     final orderCode = int.tryParse(rawOrderCode ?? '');
 
-    debugPrint('[PayOS] Return URL: $url');
-    debugPrint('[PayOS] orderId=${widget.orderId}');
-    debugPrint('[PayOS] orderCode=$orderCode');
 
     if (orderCode == null) {
-      debugPrint('[PayOS] Không lấy được orderCode từ Return URL.');
       _resultReturned = false;
 
       setState(() {
@@ -129,11 +125,7 @@ class _PayOSWebViewScreenState extends State<PayOSWebViewScreen> {
 
     setState(() => _isConfirming = true);
 
-    debugPrint(
-      '[PayOS] Gọi confirm-return với '
-      'orderId=${widget.orderId}, orderCode=$orderCode',
-    );
-
+   
     final confirmResult = await _checkoutService.confirmPayosReturn(
       orderId: widget.orderId,
       orderCode: orderCode,
@@ -142,10 +134,6 @@ class _PayOSWebViewScreenState extends State<PayOSWebViewScreen> {
     if (!mounted) return;
 
     if (confirmResult.error != null) {
-      debugPrint(
-        '[PayOS] confirm-return LỖI: '
-        '${confirmResult.error!.message}',
-      );
 
       setState(() {
         _isConfirming = false;
@@ -159,12 +147,6 @@ class _PayOSWebViewScreenState extends State<PayOSWebViewScreen> {
 
     final data = confirmResult.data;
 
-    debugPrint(
-      '[PayOS] confirm-return OK: '
-      'isSuccess=${data?.isSuccess}, '
-      'message=${data?.message}, '
-      'paymentStatus=${data?.paymentStatus}',
-    );
 
     if (data?.isSuccess != true) {
       setState(() {

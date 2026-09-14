@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:glow_aura/shared/widgets/product_image.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../cart/data/models/cart_item_model.dart';
 import '../checkout_viewmodel.dart';
@@ -132,17 +133,11 @@ class OrderSummarySection extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: AppColors.s8),
       child: Row(
         children: [
-          Container(
+          ProductImageWidget(
+            imageUrl: item.imageUrl,
             width: 52,
             height: 52,
-            decoration: BoxDecoration(
-              color: AppColors.primarySubtle,
-              borderRadius: BorderRadius.circular(10),
-              image: item.imageUrl != null
-                  ? DecorationImage(image: NetworkImage(item.imageUrl!), fit: BoxFit.cover)
-                  : null,
-            ),
-            child: item.imageUrl == null ? const Icon(Icons.spa_outlined, color: AppColors.primary, size: 22) : null,
+            borderRadius: BorderRadius.circular(10),
           ),
           const SizedBox(width: AppColors.s12),
           Expanded(

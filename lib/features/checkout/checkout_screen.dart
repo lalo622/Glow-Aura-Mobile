@@ -12,6 +12,7 @@ import 'widgets/shipping_form_section.dart';
 import 'widgets/payment_options_section.dart';
 import 'widgets/order_summary_section.dart';
 import 'widgets/order_success_dialog.dart';
+import 'widgets/address_picker_sheet.dart';
 
 class CheckoutScreen extends ConsumerStatefulWidget {
   const CheckoutScreen({super.key});
@@ -39,6 +40,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     if (user != null) {
       _fullNameCtrl.text = user.fullName;
       _emailCtrl.text = user.email;
+      _phoneCtrl.text = user.phoneNumber ?? '';
     }
     WidgetsBinding.instance.addPostFrameCallback((_) => _refreshPreview());
   }
@@ -225,9 +227,12 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                             phoneCtrl: _phoneCtrl,
                             emailCtrl: _emailCtrl,
                             addressCtrl: _addressCtrl,
-                            onPickAddress: () => setState(() {
-                              _addressCtrl.text = '123 Nguyễn Huệ, Quận 1, TP. Hồ Chí Minh';
-                            }),
+                            onPickAddress: () async {
+                                final result = await showAddressPickerSheet(context);
+                                if (result != null) {
+                                  setState(() => _addressCtrl.text = result.formatted);
+                                }
+                              },
                             onClearAddress: () => setState(() => _addressCtrl.clear()),
                           ),
                         ),

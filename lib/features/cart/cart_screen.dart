@@ -180,7 +180,7 @@ class _CartScreenState extends ConsumerState<CartScreen> {
             ),
             const SizedBox(height: AppColors.s32),
             ElevatedButton(
-              onPressed: () => context.pop(),
+              onPressed: () => context.pop('/home'),
               child: const Text('Tiếp tục mua sắm'),
             ),
           ],

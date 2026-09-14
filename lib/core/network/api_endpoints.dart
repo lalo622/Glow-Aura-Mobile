@@ -9,6 +9,8 @@ class ApiEndpoints {
   static const String logout = '/api/Auth/logout';
   static const String changePassword = '/api/Auth/change-password';
   static const String googleLogin = '/api/Auth/google';
+  static const String provinces = '/api/Address/provinces';
+  static String wards(String provinceCode) => '/api/Address/provinces/$provinceCode/wards';
 
   // ─── Checkout ────────────────────────────────────────────────
   static const String checkoutPreview = '/api/Checkout/preview';
