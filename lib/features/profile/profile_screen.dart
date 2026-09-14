@@ -5,7 +5,6 @@ import 'package:glow_aura/core/theme/app_theme.dart';
 import 'package:glow_aura/features/auth/auth_viewmodel.dart';
 import 'package:glow_aura/features/profile/profile_viewmodel.dart';
 import 'package:glow_aura/features/profile/tabs/profile_info_tab.dart';
-import 'package:glow_aura/features/profile/tabs/scan_history_tab.dart';
 import 'package:glow_aura/features/profile/widgets/profile_avatar_section.dart';
 import 'package:glow_aura/features/profile/widgets/profile_stats_row.dart';
 import 'package:glow_aura/shared/widgets/main_scaffold.dart';
@@ -25,7 +24,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController = TabController(length: 1, vsync: this);
     Future.microtask(
         () => ref.read(profileViewModelProvider.notifier).loadProfile());
   }
@@ -109,7 +108,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
               labelStyle: AppTextStyles.title(),
               tabs: const [
                 Tab(text: 'Hồ sơ'),
-                Tab(text: 'Lịch sử chụp'),
               ],
             ),
             Container(height: 1, color: AppColors.border),
@@ -127,7 +125,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                               setState(() => _reminderEnabled = v),
                           onLogout: () => _showLogoutDialog(context),
                         ),
-                        const ScanHistoryTab(),
                       ],
                     ),
             ),

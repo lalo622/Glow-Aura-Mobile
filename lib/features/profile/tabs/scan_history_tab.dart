@@ -6,13 +6,18 @@ import 'package:glow_aura/core/theme/app_theme.dart';
 import 'package:glow_aura/features/scan/data/models/skin_analysis_history.dart';
 import 'package:glow_aura/features/scan/data/scan_database.dart';
 import 'package:glow_aura/features/scan/providers/skin_history_provider.dart';
+import 'package:glow_aura/core/network/token_storage.dart';
+
 
 const int _kRecentScansLimit = 3;
 
 final _imagePathByTimeProvider =
     FutureProvider.autoDispose.family<String?, DateTime>((ref, capturedAt) async {
   final db = ref.watch(scanDatabaseProvider);
-  return db.getImagePathNearTime(capturedAt);
+  final userId = await TokenStorage.getUserId();
+if (userId == null) return null;
+
+return db.getImagePathNearTime(capturedAt, userId);
 });
 
 // ── Tab chính ────────────────────────────────────────────────────────────
