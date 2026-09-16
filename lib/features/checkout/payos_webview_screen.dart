@@ -174,31 +174,13 @@ class _PayOSWebViewScreenState extends State<PayOSWebViewScreen> {
     });
     _initController();
   }
-
   @override
   Widget build(BuildContext context) {
-    return WillPopScope(
-      onWillPop: () async {
-        if (_isConfirming) return false;
-        final confirm = await showDialog<bool>(
-          context: context,
-          builder: (_) => AlertDialog(
-            title: const Text('Huỷ thanh toán?'),
-            content: const Text('Bạn có chắc muốn huỷ giao dịch này?'),
-            actions: [
-              TextButton(
-                  onPressed: () => Navigator.pop(context, false),
-                  child: const Text('Tiếp tục thanh toán')),
-              TextButton(
-                  onPressed: () => Navigator.pop(context, true),
-                  child: const Text('Huỷ')),
-            ],
-          ),
-        );
-        if (confirm == true && mounted) {
-          Navigator.of(context).pop(PayOSResult.cancelled);
-        }
-        return false;
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        _handleBackAttempt();
       },
       child: Scaffold(
         appBar: AppBar(
@@ -260,4 +242,27 @@ class _PayOSWebViewScreenState extends State<PayOSWebViewScreen> {
       ),
     );
   }
+  Future<void> _handleBackAttempt() async {
+  if (_isConfirming) return;
+
+  final confirm = await showDialog<bool>(
+    context: context,
+    builder: (_) => AlertDialog(
+      title: const Text('Huỷ thanh toán?'),
+      content: const Text('Bạn có chắc muốn huỷ giao dịch này?'),
+      actions: [
+        TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Tiếp tục thanh toán')),
+        TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Huỷ')),
+      ],
+    ),
+  );
+
+  if (confirm == true && mounted) {
+    Navigator.of(context).pop(PayOSResult.cancelled);
+  }
+}
 }

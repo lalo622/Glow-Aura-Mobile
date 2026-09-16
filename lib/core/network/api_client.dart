@@ -15,9 +15,6 @@ class ApiClient {
         headers: {'Content-Type': 'application/json'},
       ),
     );
-
-    
-
     _dio.interceptors.add(_AuthInterceptor(_dio));
   }
 
@@ -83,12 +80,10 @@ class _AuthInterceptor extends Interceptor {
   Future<String?> _tryRefresh() async {
     final refreshToken = await TokenStorage.getRefreshToken();
     if (refreshToken == null) return null;
-
     final response = await _dio.post(
       ApiEndpoints.refreshToken,
       data: {'refreshToken': refreshToken},
     );
-
     if (response.statusCode == 200 && response.data['isSuccess'] == true) {
       final token = response.data['token'];
       await TokenStorage.saveTokens(
@@ -97,7 +92,6 @@ class _AuthInterceptor extends Interceptor {
       );
       return token['accessToken'] as String;
     }
-
     return null;
   }
 }

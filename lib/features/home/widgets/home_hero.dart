@@ -115,7 +115,7 @@ class HomeHero extends StatelessWidget {
             left: AppColors.s16,
             right: AppColors.s16,
             bottom: -54,
-            child: _FloatingScoreCard(score: score, delta: scoreDelta),
+            child: _FloatingScoreCard(score: score, delta: scoreDelta, hasData: hasData,),
           ),
         ],
       ),

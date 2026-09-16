@@ -777,7 +777,7 @@ class _ProductCard extends StatelessWidget {
       }
     }
 
-    return '${buffer}đ';
+    return '$bufferđ';
   }
 
  @override

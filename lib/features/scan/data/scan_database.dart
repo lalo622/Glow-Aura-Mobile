@@ -54,6 +54,7 @@ class ScanDatabase extends _$ScanDatabase {
 
         onUpgrade: (m, from, to) async {
           if (from < 2) {
+            // ignore: experimental_member_use
             await m.alterTable(TableMigration(scanRecords));
           }
 

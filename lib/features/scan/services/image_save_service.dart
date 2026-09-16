@@ -31,19 +31,18 @@ class ImageSaveService {
     required String userId,
   }) async {
     final localPath = await _copyToDocuments(tempImagePath);
-
     try {
       await File(tempImagePath).delete();
     } catch (e) {
-    }
-
+      // Không xóa file tạm
+      }
     bool savedToGallery = false;
-
     try {
       await Gal.putImage(localPath, album: 'Glow Aura');
       savedToGallery = true;
     } catch (e) {
-    }
+      // Lưu ở Localpath, lưu gallery là optional
+      }
 
     final scanId = await _db.insertScan(
       userId: userId,

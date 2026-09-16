@@ -31,6 +31,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       context.go('/home');
     }
   }
+  Future<void> _onLoginWithGoogle() async {
+  final ok = await ref.read(authViewModelProvider.notifier).loginWithGoogle();
+  if (ok && mounted) {
+    ref.invalidate(historyPagingProvider);
+    context.go('/home');
+  }
+}
 
   @override
   Widget build(BuildContext context) {
@@ -89,13 +96,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 Row(children: [
                   Expanded(child: SocialAuthButton(label: 'Google', logoText: 'G',
                     logoColor: const Color(0xFFEA4335),
-                    onPressed: () async {
-                    final ok = await ref.read(authViewModelProvider.notifier).loginWithGoogle();
-                    if (ok && mounted) {
-                    ref.invalidate(historyPagingProvider);
-                    context.go('/home');
-                  }
-                  },
+                    onPressed: _onLoginWithGoogle,
                   )),
                   const SizedBox(width: 12),
                   Expanded(child: SocialAuthButton(label: 'Facebook', logoText: 'f',

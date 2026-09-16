@@ -232,7 +232,7 @@ Future<void> _retryPendingUploads() async {
     });
 
     if (mounted) await _resetCaptureState();
-  } catch (e, st) {
+  } catch (e) {
     if (mounted) {
       setState(() => _isCapturing = false);
       ScaffoldMessenger.of(context).showSnackBar(

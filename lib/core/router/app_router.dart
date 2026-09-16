@@ -12,7 +12,6 @@ import 'package:glow_aura/features/profile/profile_screen.dart';
 import 'package:glow_aura/features/settings/settings_screen.dart';
 import 'package:glow_aura/features/scan/scan_history_screen.dart';
 import 'package:glow_aura/features/scan/scan_detail_screen.dart';
-import 'package:glow_aura/features/advice/advice_screen.dart';
 import 'package:glow_aura/features/onboarding/splash_screen.dart';
 import 'package:glow_aura/features/profile/edit_profile_screen.dart';
 import 'package:glow_aura/features/product/product_list_screen.dart';
@@ -72,7 +71,6 @@ class AppRouter {
         );
         },
       ),
-      GoRoute(path: '/advice',       builder: (c, s) => const AdviceScreen()),
       GoRoute(path: '/edit-profile', builder: (c, s) => const EditProfileScreen()),
       GoRoute(path: '/products', builder: (c, s) => const ProductListScreen()),
       GoRoute(
